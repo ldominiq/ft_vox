@@ -9,7 +9,7 @@ include_directories(${CMAKE_SOURCE_DIR}/Libraries/include)
 link_directories(${CMAKE_SOURCE_DIR}/Libraries/lib)
 
 # Add the executable and its source files
-add_executable(ft_vox main.cpp objloader.cpp Mesh.cpp Model.cpp Shader.cpp glad.cpp camera.cpp)
+add_executable(ft_vox main.cpp objloader.cpp Mesh.cpp Model.cpp Shader.cpp glad.cpp camera.cpp stb_image_loader.cpp)
 
 # Link the GLAD and GLFW libraries
 #target_link_libraries(ft_vox glfw3 glad)
