@@ -29,10 +29,10 @@ static int		textured = 0;
 static int      autorotate = 1;
 
 // camera
-Camera camera(c_math::vec3(3.0f, 0.0f, 3.0f));
+Camera camera(glm::vec3(3.0f, 0.0f, 3.0f));
 
 // model
-c_math::mat4 model = c_math::mat4(1.0f);
+glm::mat4 model = glm::mat4(1.0f);
 
 bool firstMouse = true;
 float lastX =  (float)SCR_WIDTH / 2.0;
@@ -129,8 +129,8 @@ int main(int argc, char **argv)
     }
     Model reference = ourModel;
 
-    model = c_math::translate(model, c_math::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
-    model = c_math::scale(model, c_math::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
+    model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
+    model = glm::scale(model, glm::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
 
     // removes VSync (breaks model movement because deltaTime is different)
     // glfwSwapInterval(0);
@@ -164,27 +164,27 @@ int main(int argc, char **argv)
             mixValue = mixValue - step < 0.0 ? 0.0 : mixValue - step;
 
         // pass projection matrix to shader (as projection matrix rarely changes there's no need to do this per frame)
-        c_math::mat4 projection    = c_math::mat4(1.0f);
-        projection = c_math::perspective(c_math::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection    = glm::mat4(1.0f);
+        projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         ourShader.setMat4("projection", projection);
 
         // camera/view transformation
-        c_math::mat4 view = c_math::mat4(1.0f); // make sure to initialize matrix to identity matrix first
+        glm::mat4 view = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
 
         view = camera.GetViewMatrix();
         ourShader.setMat4("view", view);
 
         if (autorotate)
-            model = c_math::rotate(model, c_math::radians(0.1f), c_math::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::rotate(model, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
 
         // render the loaded model
         ourShader.setMat4("model", model);
         ourModel.Draw(ourShader);
 
         // render the reference model
-        c_math::mat4 model2 = c_math::mat4(1.0f);
-        model2 = c_math::translate(model2, c_math::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
-        model2 = c_math::scale(model2, c_math::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
+        glm::mat4 model2 = glm::mat4(1.0f);
+        model2 = glm::translate(model2, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
+        model2 = glm::scale(model2, glm::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
         ourShader.setMat4("model", model2);
         //reference.Draw(ourShader);
 
@@ -248,70 +248,70 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
     {
         // Move the model on the -X axis
-        model = c_math::translate(model, c_math::vec3(-0.1f, 0.0f, 0.0f));
+        model = glm::translate(model, glm::vec3(-0.1f, 0.0f, 0.0f));
     }
     if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
     {
         // Move the model on the X axis
-        model = c_math::translate(model, c_math::vec3(0.1f, 0.0f, 0.0f));
+        model = glm::translate(model, glm::vec3(0.1f, 0.0f, 0.0f));
     }
     if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
     {
         // Move the model on the -Z axis
-        model = c_math::translate(model, c_math::vec3(0.0f, 0.0f, -0.1f));
+        model = glm::translate(model, glm::vec3(0.0f, 0.0f, -0.1f));
     }
     if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
     {
         // Move the model on the Z axis
-        model = c_math::translate(model, c_math::vec3(0.0f, 0.0f, 0.1f));
+        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.1f));
     }
     if (glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_PRESS)
     {
         // Move the model on the Y axis
-        model = c_math::translate(model, c_math::vec3(0.0f, 0.1f, 0.0f));
+        model = glm::translate(model, glm::vec3(0.0f, 0.1f, 0.0f));
     }
     if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS)
     {
         // Move the model on the -Y axis
-        model = c_math::translate(model, c_math::vec3(0.0f, -0.1f, 0.0f));
+        model = glm::translate(model, glm::vec3(0.0f, -0.1f, 0.0f));
     }
 
     // Handle model rotations
     if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS)
     {
         // Rotate the model counterclockwise around the Y axis
-        model = c_math::rotate(model, c_math::radians(1.0f), c_math::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, glm::radians(1.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     }
     if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
     {
         // Rotate the model clockwise around the Y axis
-        model = c_math::rotate(model, c_math::radians(-1.0f), c_math::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, glm::radians(-1.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     }
 
     // Handle model scaling
     if (glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS)
     {
         // Scale the model down
-        model = c_math::scale(model, c_math::vec3(0.99f, 0.99f, 0.99f));
+        model = glm::scale(model, glm::vec3(0.99f, 0.99f, 0.99f));
     }
     if (glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS)
     {
         // Scale the model up
-        model = c_math::scale(model, c_math::vec3(1.01f, 1.01f, 1.01f));
+        model = glm::scale(model, glm::vec3(1.01f, 1.01f, 1.01f));
     }
 
     // Reset model transformations
     if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
     {
-        model = c_math::mat4(1.0f);
-        model = c_math::translate(model, c_math::vec3(0.0f, 0.0f, 0.0f));
-        model = c_math::scale(model, c_math::vec3(0.5f, .5f, .5f));
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(0.5f, .5f, .5f));
     }
 
     // Reset camera position
     if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
     {
-        camera.Position = c_math::vec3(3.0f, 0.0f, 3.0f);
+        camera.Position = glm::vec3(3.0f, 0.0f, 3.0f);
     }
 }
 

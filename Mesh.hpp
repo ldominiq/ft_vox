@@ -7,14 +7,16 @@
 
 #include <string>
 #include <vector>
-#include "Maths/c_math_inc.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include "Shader.hpp"
 #include "Libraries/include/glad/glad.h"
 
 struct Vertex {
-    c_math::vec3 Position;
-    c_math::vec3 Normal;
-    c_math::vec2 TexCoords;
+    glm::vec3 Position;
+    glm::vec3 Normal;
+    glm::vec2 TexCoords;
 };
 
 struct Texture {

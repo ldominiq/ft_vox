@@ -66,7 +66,7 @@ void handleExtendedVertices(const char* line, std::vector<unsigned int>& out_ind
 
 bool objloader::loadOBJ(
 	const char* path,
-	std::vector<c_math::vec3>   &out_vertices,
+	std::vector<glm::vec3>   &out_vertices,
     std::vector<unsigned int>   &out_indices,
     int                         &out_facesNb,
     int                         &out_verticesNb
@@ -75,9 +75,9 @@ bool objloader::loadOBJ(
 	printf("Loading OBJ file %s...\n", path);
 
 	std::vector< unsigned int > vertexIndices, uvIndices, normalIndices;
-	std::vector< c_math::vec3 > temp_vertices;
-	std::vector< c_math::vec2 > temp_uvs;
-	std::vector< c_math::vec3 > temp_normals;
+	std::vector< glm::vec3 > temp_vertices;
+	std::vector< glm::vec2 > temp_uvs;
+	std::vector< glm::vec3 > temp_normals;
 
 	FILE* file = fopen(path, "r");
 	if (file == nullptr) {
@@ -97,16 +97,16 @@ bool objloader::loadOBJ(
 
 		if (strcmp(lineHeader, "v") == 0) {
             out_verticesNb++;
-			c_math::vec3 vertex;
+			glm::vec3 vertex;
 			fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z);
 			temp_vertices.push_back(vertex);
 		} else if (strcmp(lineHeader, "vt") == 0) {
-			c_math::vec2 uv;
+			glm::vec2 uv;
 			fscanf(file, "%f %f\n", &uv.x, &uv.y);
 //			uv.y = -uv.y; // Invert V coordinate if using DDS texture, which are inverted.
 			temp_uvs.push_back(uv);
 		} else if (strcmp(lineHeader, "vn") == 0) {
-			c_math::vec3 normal;
+			glm::vec3 normal;
 			fscanf(file, "%f %f %f\n", &normal.x, &normal.y, &normal.z);
 			temp_normals.push_back(normal);
 		} else if (strcmp(lineHeader, "f") == 0) {
