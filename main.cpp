@@ -5,7 +5,6 @@
 #include "Shader.hpp"
 #include "camera.h"
 #include "Model.hpp"
-
 // leak detection windows
 // #include <vld.h>
 
@@ -50,7 +49,7 @@ double deltaTime;
 unsigned int counter = 0;
 
 // lighting
-glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
+glm::vec3 lightPos(-1.0f, 0.0f, 1.0f);
 
 int DEBUG = 1;
 
@@ -115,6 +114,8 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+    stbi_set_flip_vertically_on_load(true);
+
     // configure global opengl state
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
@@ -125,15 +126,16 @@ int main(int argc, char **argv)
 	Shader ourShader("../../Shaders/3.3.shader.vs", "../../Shaders/3.3.shader.fs");
     Shader lightShader("../../Shaders/light.vert", "../../Shaders/light.frag");
 
-    Model ourModel("Models/42.obj");
+    std::cout << "Loading models..." << std::endl;
+    Model ourModel("../../Models/backpack/backpack.obj");
 
-    Model lightModel("Models/teapot2.obj");
+    Model lightModel("../../Models/cube.obj");
 
-    if (!ourModel.loaded)
-    {
-        glfwTerminate();
-        return -1;
-    }
+//    if (!ourModel.loaded)
+//    {
+//        glfwTerminate();
+//        return -1;
+//    }
 //    Model reference = ourModel;
 
     model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
@@ -167,9 +169,11 @@ int main(int argc, char **argv)
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // also clear the depth buffer now!
 
         ourShader.setFloat("mixValue", mixValue);
+
         ourShader.use();
         ourShader.setVec3("objectColor", 1.0f, 0.5f, 0.31f);
         ourShader.setVec3("lightColor",  1.0f, 1.0f, 1.0f);
+        ourShader.setVec3("lightPos", lightPos);
 
         if (!textured && mixValue < 1.)
             mixValue = mixValue + step > 1.0 ? 1.0 : mixValue + step;
@@ -194,19 +198,13 @@ int main(int argc, char **argv)
         ourShader.setMat4("model", model);
         ourModel.Draw(ourShader);
 
-        // render the reference model
-//        glm::mat4 model2 = glm::mat4(1.0f);
-//        model2 = glm::translate(model2, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
-//        model2 = glm::scale(model2, glm::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
-//        ourShader.setMat4("model", model2);
-        //reference.Draw(ourShader);
-
+        // render light source model
         lightShader.use();
         lightShader.setMat4("projection", projection);
         lightShader.setMat4("view", view);
         light = glm::mat4(1.0f);
         light = glm::translate(light, lightPos);
-        light = glm::scale(light, glm::vec3(0.2f)); // a smaller cube
+        light = glm::scale(light, glm::vec3(0.2f));
         lightShader.setMat4("model", light);
         lightModel.Draw(lightShader);
 

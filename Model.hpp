@@ -10,23 +10,31 @@
 #include <fstream>
 #include "Shader.hpp"
 #include "Mesh.hpp"
-#include "objloader.h"
 #include "./Libraries/include/stb_image.h"
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 
 class Model {
 public:
-    explicit Model(const char *path);
+    Model(std::string const &path, bool gamma = false);
 
     void Draw(Shader &shader);
-    bool loaded{ false };
+
 private:
+    bool gammaCorrection;
+    std::vector<Texture> textures_loaded;	// stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
     std::vector<Mesh> meshes;
     std::string directory;
 
-    void loadModel(const char *path);
+    void loadModel(std::string const &path);
+    void processNode(aiNode *node, const aiScene *scene);
+    Mesh processMesh(aiMesh *mesh, const aiScene *scene);
 
-    unsigned int TextureFromFile();
+    std::vector<Texture> loadMaterialTextures(aiMaterial *mat, aiTextureType type, std::string typeName);
+
+    unsigned int TextureFromFile(const char *path, const std::string &directory, bool gamma);
 };
 
 #endif //OPENGL_MODEL_HPP
