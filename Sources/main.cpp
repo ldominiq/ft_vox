@@ -1,6 +1,6 @@
 #include <iostream>
-#include "Libraries/include/glad/glad.h"
-#include "Libraries/include/GLFW/glfw3.h"
+#include "glad/glad.h"
+#include "GLFW/glfw3.h"
 
 #include "Shader.hpp"
 #include "camera.h"

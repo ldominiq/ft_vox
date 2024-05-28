@@ -7,11 +7,11 @@
 
 #include <string>
 #include <vector>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
 #include "Shader.hpp"
-#include "Libraries/include/glad/glad.h"
+#include "glad/glad.h"
 
 #define MAX_BONE_INFLUENCE 4
 

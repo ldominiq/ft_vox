@@ -10,10 +10,10 @@
 #include <fstream>
 #include "Shader.hpp"
 #include "Mesh.hpp"
-#include "./Libraries/include/stb_image.h"
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
+#include "stb_image.h"
+#include "assimp/Importer.hpp"
+#include "assimp/scene.h"
+#include "assimp/postprocess.h"
 
 
 class Model {
