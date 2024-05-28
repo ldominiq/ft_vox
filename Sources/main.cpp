@@ -141,10 +141,6 @@ int main(int argc, char **argv)
     model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
     model = glm::scale(model, glm::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
 
-    light = glm::translate(light, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
-    light = glm::scale(light, glm::vec3(0.1f));	// it's a bit too big for our scene, so scale it down
-
-
     // removes VSync (breaks model movement because deltaTime is different)
     // glfwSwapInterval(0);
 
@@ -171,26 +167,47 @@ int main(int argc, char **argv)
         ourShader.setFloat("mixValue", mixValue);
 
         ourShader.use();
-        ourShader.setVec3("objectColor", 1.0f, 0.5f, 0.31f);
-        ourShader.setVec3("lightColor",  1.0f, 1.0f, 1.0f);
-        ourShader.setVec3("lightPos", lightPos);
+        ourShader.setVec3("light.position", lightPos);
         ourShader.setVec3("viewPos", camera.Position);
 
+        //light properties
+        glm::vec3 lightColor;
+        lightColor.x = sin(glfwGetTime() * 2.0f);
+        lightColor.y = sin(glfwGetTime() * 0.7f);
+        lightColor.z = sin(glfwGetTime() * 1.3f);
+
+        glm::vec3 diffuseColor = lightColor   * glm::vec3(0.5f); // decrease the influence
+        glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f); // low influence
+
+        ourShader.setVec3("light.ambient", ambientColor);
+        ourShader.setVec3("light.diffuse", diffuseColor); // darken diffuse light a bit
+        ourShader.setVec3("light.specular", 1.0f, 1.0f, 1.0f); // The specular component is usually kept at vec3(1.0) shining at full intensity
+
+        // material properties
+        ourShader.setVec3("material.ambient", 1.0f, 0.5f, 0.31f);
+        ourShader.setVec3("material.diffuse", 1.0f, 0.5f, 0.31f);
+        ourShader.setVec3("material.specular", 0.5f, 0.5f, 0.5f);
+        ourShader.setFloat("material.shininess", 32.0f);
+
+
+
+        // mix the textures
         if (!textured && mixValue < 1.)
             mixValue = mixValue + step > 1.0 ? 1.0 : mixValue + step;
         else if (textured && mixValue > 0.)
             mixValue = mixValue - step < 0.0 ? 0.0 : mixValue - step;
 
-        // pass projection matrix to shader (as projection matrix rarely changes there's no need to do this per frame)
-        glm::mat4 projection    = glm::mat4(1.0f);
+
+        // view/projection transformations
+        glm::mat4 projection = glm::mat4(1.0f);
         projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         ourShader.setMat4("projection", projection);
 
         // camera/view transformation
         glm::mat4 view = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
-
         view = camera.GetViewMatrix();
         ourShader.setMat4("view", view);
+
 
 //        if (autorotate)
 //            model = glm::rotate(model, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -198,6 +215,7 @@ int main(int argc, char **argv)
         // render the loaded model
         ourShader.setMat4("model", model);
         ourModel.Draw(ourShader);
+
 
         // render light source model
         lightShader.use();
@@ -211,15 +229,12 @@ int main(int argc, char **argv)
 
         }
         // rotate the light around the scene
-
         light = glm::mat4(1.0f);
         light = glm::translate(light, lightPos);
         light = glm::scale(light, glm::vec3(0.1f));	// it's a bit too big for our scene, so scale it down
 
         lightShader.setMat4("model", light);
         lightModel.Draw(lightShader);
-
-        // render the light cube
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
