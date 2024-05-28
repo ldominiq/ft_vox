@@ -4,8 +4,6 @@
 
 #include "Model.hpp"
 
-#include <utility>
-
 #define MAX_FLOAT 3.40282e+38
 #define MIN_FLOAT 1.17549e-38
 
@@ -131,7 +129,7 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene)
     textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
 
     // return a mesh object created from the extracted mesh data
-    return Mesh(vertices, indices, textures);
+    return {vertices, indices, textures};
 }
 
 unsigned int Model::TextureFromFile(const char *path, const std::string &directory, bool gamma = false)
@@ -146,7 +144,7 @@ unsigned int Model::TextureFromFile(const char *path, const std::string &directo
     unsigned char *data = stbi_load(filename.c_str(), &width, &height, &nrComponents, 0);
     if (data)
     {
-        GLenum format;
+        GLenum format = 0;
         if (nrComponents == 1)
             format = GL_RED;
         else if (nrComponents == 3)

@@ -23,7 +23,7 @@ public:
     // constructor reads and builds the shader
     Shader(const char* vertexPath, const char* fragmentPath);
     // use/activate the shader
-    void use();
+    void use() const;
     // utility uniform functions
     void setBool(const std::string &name, bool value) const;
     void setInt(const std::string &name, int value) const;
@@ -40,7 +40,7 @@ public:
     void setMat4(const std::string &name, const glm::mat4 &mat) const;
 
 private:
-    void checkCompileErrors(unsigned int shader, std::string type);
+    static void checkCompileErrors(unsigned int shader, const std::string& type);
 };
 
 #endif //SHADER_HPP

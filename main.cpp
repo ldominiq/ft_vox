@@ -63,7 +63,7 @@ int main(int argc, char **argv)
         }
         //check if argv[1] is .obj
         std::string file = argv[1];
-        std::string extension = file.substr(file.find_last_of(".") + 1);
+        std::string extension = file.substr(file.find_last_of('.') + 1);
         if (extension != "obj")
         {
             std::cout << "Invalid file extension. Please provide a .obj file." << std::endl;

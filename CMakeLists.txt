@@ -17,9 +17,6 @@ add_executable(ft_vox main.cpp Mesh.cpp Model.cpp Shader.cpp glad.cpp camera.cpp
 # Find and link the OpenGL library
 #find_package(glfw3 3.4 REQUIRED)
 
-#ASSIMP
-find_package(ASSIMP)
-
 find_package(OpenGL REQUIRED)
 target_link_libraries(ft_vox PUBLIC glfw3 assimp OpenGL::GL ${CMAKE_DL_LIBS})
 

@@ -18,7 +18,7 @@
 
 class Model {
 public:
-    Model(std::string const &path, bool gamma = false);
+    explicit Model(std::string const &path, bool gamma = false);
 
     void Draw(Shader &shader);
 
@@ -34,7 +34,7 @@ private:
 
     std::vector<Texture> loadMaterialTextures(aiMaterial *mat, aiTextureType type, std::string typeName);
 
-    unsigned int TextureFromFile(const char *path, const std::string &directory, bool gamma);
+    static unsigned int TextureFromFile(const char *path, const std::string &directory, bool gamma);
 };
 
 #endif //OPENGL_MODEL_HPP
