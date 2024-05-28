@@ -123,11 +123,11 @@ int main(int argc, char **argv)
 	// Build and compile our shader program
 	// ------------------------------------
     std::cout << "Loading shaders..." << std::endl;
-	Shader ourShader("../../Shaders/3.3.shader.vs", "../../Shaders/3.3.shader.fs");
+	Shader ourShader("../../Shaders/3.3.shader.vert", "../../Shaders/3.3.shader.frag");
     Shader lightShader("../../Shaders/light.vert", "../../Shaders/light.frag");
 
     std::cout << "Loading models..." << std::endl;
-    Model ourModel("../../Models/backpack/backpack.obj");
+    Model ourModel("../../Models/Porsche_911_GT2.obj");
 
     Model lightModel("../../Models/cube.obj");
 
@@ -142,7 +142,7 @@ int main(int argc, char **argv)
     model = glm::scale(model, glm::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
 
     light = glm::translate(light, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
-    light = glm::scale(light, glm::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
+    light = glm::scale(light, glm::vec3(0.1f));	// it's a bit too big for our scene, so scale it down
 
 
     // removes VSync (breaks model movement because deltaTime is different)
@@ -174,6 +174,7 @@ int main(int argc, char **argv)
         ourShader.setVec3("objectColor", 1.0f, 0.5f, 0.31f);
         ourShader.setVec3("lightColor",  1.0f, 1.0f, 1.0f);
         ourShader.setVec3("lightPos", lightPos);
+        ourShader.setVec3("viewPos", camera.Position);
 
         if (!textured && mixValue < 1.)
             mixValue = mixValue + step > 1.0 ? 1.0 : mixValue + step;
@@ -191,8 +192,8 @@ int main(int argc, char **argv)
         view = camera.GetViewMatrix();
         ourShader.setMat4("view", view);
 
-        if (autorotate)
-            model = glm::rotate(model, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
+//        if (autorotate)
+//            model = glm::rotate(model, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
 
         // render the loaded model
         ourShader.setMat4("model", model);
@@ -202,9 +203,19 @@ int main(int argc, char **argv)
         lightShader.use();
         lightShader.setMat4("projection", projection);
         lightShader.setMat4("view", view);
+
+        if (autorotate){
+            lightPos.x = cos(glfwGetTime()) * 2.0f;
+            lightPos.z = sin(glfwGetTime()) * 2.0f;
+            lightPos.y = 0;
+
+        }
+        // rotate the light around the scene
+
         light = glm::mat4(1.0f);
         light = glm::translate(light, lightPos);
-        light = glm::scale(light, glm::vec3(0.2f));
+        light = glm::scale(light, glm::vec3(0.1f));	// it's a bit too big for our scene, so scale it down
+
         lightShader.setMat4("model", light);
         lightModel.Draw(lightShader);
 

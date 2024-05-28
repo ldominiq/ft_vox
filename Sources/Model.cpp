@@ -12,8 +12,6 @@ glm::vec3 maxVertex(MIN_FLOAT, MIN_FLOAT, MIN_FLOAT);
 
 Model::Model(std::string const &path, bool gamma) : gammaCorrection(gamma) {
     loadModel(path);
-    // Print loaded model
-    std::cout << "Model loaded: " << path << std::endl;
 }
 
 void Model::Draw(Shader &shader) {
@@ -33,6 +31,7 @@ void Model::loadModel(std::string const &path) {
     directory = path.substr(0, path.find_last_of('/'));
 
     processNode(scene->mRootNode, scene);
+    std::cout << "Model loaded: " << path << std::endl;
 }
 
 void Model::processNode(aiNode *node, const aiScene *scene)
