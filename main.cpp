@@ -26,13 +26,14 @@ float mixValue = 1.0f;
 const float		step = 0.01;
 static int		textured = 0;
 
-static int      autorotate = 1;
+static int      autorotate = 0;
 
 // camera
 Camera camera(glm::vec3(3.0f, 0.0f, 3.0f));
 
 // model
 glm::mat4 model = glm::mat4(1.0f);
+glm::mat4 light = glm::mat4(1.0f);
 
 bool firstMouse = true;
 float lastX =  (float)SCR_WIDTH / 2.0;
@@ -47,6 +48,9 @@ double prevTime = 0.0;
 double currentTime = 0.0;
 double deltaTime;
 unsigned int counter = 0;
+
+// lighting
+glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
 
 int DEBUG = 1;
 
@@ -118,19 +122,26 @@ int main(int argc, char **argv)
 	// Build and compile our shader program
 	// ------------------------------------
     std::cout << "Loading shaders..." << std::endl;
-	Shader ourShader("Shaders/3.3.shader.vs", "Shaders/3.3.shader.fs");
+	Shader ourShader("../../Shaders/3.3.shader.vs", "../../Shaders/3.3.shader.fs");
+    Shader lightShader("../../Shaders/light.vert", "../../Shaders/light.frag");
 
     Model ourModel("Models/42.obj");
+
+    Model lightModel("Models/teapot2.obj");
 
     if (!ourModel.loaded)
     {
         glfwTerminate();
         return -1;
     }
-    Model reference = ourModel;
+//    Model reference = ourModel;
 
     model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
     model = glm::scale(model, glm::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
+
+    light = glm::translate(light, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
+    light = glm::scale(light, glm::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
+
 
     // removes VSync (breaks model movement because deltaTime is different)
     // glfwSwapInterval(0);
@@ -157,6 +168,8 @@ int main(int argc, char **argv)
 
         ourShader.setFloat("mixValue", mixValue);
         ourShader.use();
+        ourShader.setVec3("objectColor", 1.0f, 0.5f, 0.31f);
+        ourShader.setVec3("lightColor",  1.0f, 1.0f, 1.0f);
 
         if (!textured && mixValue < 1.)
             mixValue = mixValue + step > 1.0 ? 1.0 : mixValue + step;
@@ -182,11 +195,22 @@ int main(int argc, char **argv)
         ourModel.Draw(ourShader);
 
         // render the reference model
-        glm::mat4 model2 = glm::mat4(1.0f);
-        model2 = glm::translate(model2, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
-        model2 = glm::scale(model2, glm::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
-        ourShader.setMat4("model", model2);
+//        glm::mat4 model2 = glm::mat4(1.0f);
+//        model2 = glm::translate(model2, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
+//        model2 = glm::scale(model2, glm::vec3(0.5f, .5f, .5f));	// it's a bit too big for our scene, so scale it down
+//        ourShader.setMat4("model", model2);
         //reference.Draw(ourShader);
+
+        lightShader.use();
+        lightShader.setMat4("projection", projection);
+        lightShader.setMat4("view", view);
+        light = glm::mat4(1.0f);
+        light = glm::translate(light, lightPos);
+        light = glm::scale(light, glm::vec3(0.2f)); // a smaller cube
+        lightShader.setMat4("model", light);
+        lightModel.Draw(lightShader);
+
+        // render the light cube
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
