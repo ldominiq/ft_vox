@@ -127,9 +127,9 @@ int main(int argc, char **argv)
     Shader lightShader("../../Shaders/light.vert", "../../Shaders/light.frag");
 
     std::cout << "Loading models..." << std::endl;
-    Model ourModel("../../Models/Porsche_911_GT2.obj");
+    Model ourModel("../../Models/box/cube.obj");
 
-    Model lightModel("../../Models/cube.obj");
+    Model lightModel("../../Models/box/cube.obj");
 
 //    if (!ourModel.loaded)
 //    {
@@ -143,6 +143,21 @@ int main(int argc, char **argv)
 
     // removes VSync (breaks model movement because deltaTime is different)
     // glfwSwapInterval(0);
+
+    // populate list of models
+    std::vector<glm::mat4> models;
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            for (int k = 0; k < 3; ++k) {
+                glm::mat4 model = glm::mat4(1.0f);
+                model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+                // move the model spaced between -10 and 10
+                model = glm::translate(model, glm::vec3(-1.0f + i, -1.0f + j, -1.0f + k));
+                model = glm::scale(model, glm::vec3(0.2f));
+                models.push_back(model);
+            }
+        }
+    }
 
     // render loop
 	while(!glfwWindowShouldClose(window))
@@ -166,7 +181,9 @@ int main(int argc, char **argv)
 
         ourShader.setFloat("mixValue", mixValue);
 
+
         ourShader.use();
+        ourShader.setFloat("time", glfwGetTime());
         ourShader.setVec3("light.position", lightPos);
         ourShader.setVec3("viewPos", camera.Position);
 
@@ -182,15 +199,10 @@ int main(int argc, char **argv)
 
 //        ourShader.setVec3("light.ambient", ambientColor);
 //        ourShader.setVec3("light.diffuse", diffuseColor); // darken diffuse light a bit
-        ourShader.setVec3("light.ambient", 1.0f, 1.0f, 1.0f);
-        ourShader.setVec3("light.diffuse", 1.0f, 1.0f, 1.0f);
+        ourShader.setVec3("light.ambient", 0.2f, 0.2f, 0.2f);
+        ourShader.setVec3("light.diffuse", 0.5f, 0.5f, 0.5f);
         ourShader.setVec3("light.specular", 1.0f, 1.0f, 1.0f); // The specular component is usually kept at vec3(1.0) shining at full intensity
-
-        // material properties
-        ourShader.setVec3("material.ambient", 0.0f, 0.1f, 0.06f);
-        ourShader.setVec3("material.diffuse", 0.0f, 0.50980392f, 0.50980392f);
-        ourShader.setVec3("material.specular", 0.50196078f, 0.50196078f, 0.50196078f);
-        ourShader.setFloat("material.shininess", 0.25f);
+        ourShader.setFloat("material.shininess", 0.5f);
 
 
 
@@ -212,12 +224,21 @@ int main(int argc, char **argv)
         ourShader.setMat4("view", view);
 
 
-//        if (autorotate)
-//            model = glm::rotate(model, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
+        if (autorotate)
+            model = glm::rotate(model, glm::radians(0.1f), glm::vec3(1.0f, 1.0f, 0.0f));
 
         // render the loaded model
         ourShader.setMat4("model", model);
         ourModel.Draw(ourShader);
+
+        // render the loaded model
+        for (unsigned int i = 0; i < models.size(); i++)
+        {
+            if (autorotate)
+                models[i] = glm::rotate(models[i], glm::radians(0.1f), glm::vec3(1.0f, 1.0f, 0.0f));
+            ourShader.setMat4("model", models[i]);
+            ourModel.Draw(ourShader);
+        }
 
 
         // render light source model
@@ -226,8 +247,8 @@ int main(int argc, char **argv)
         lightShader.setMat4("view", view);
 
         if (autorotate){
-            lightPos.x = cos(glfwGetTime()) * 2.0f;
-            lightPos.z = sin(glfwGetTime()) * 2.0f;
+            lightPos.x = cos(glfwGetTime() / 2.0f) * 3.0f; // range of -2 to 2
+            lightPos.z = sin(glfwGetTime() / 2.0f) * 3.0f;
             lightPos.y = 0;
 
         }
