@@ -123,7 +123,7 @@ int main(int argc, char **argv)
 	// Build and compile our shader program
 	// ------------------------------------
     std::cout << "Loading shaders..." << std::endl;
-	Shader ourShader("../../Shaders/3.3.shader.vert", "../../Shaders/3.3.shader.frag");
+	Shader ourShader("../../Shaders/direc_light.vert", "../../Shaders/direc_light.frag");
     Shader lightShader("../../Shaders/light.vert", "../../Shaders/light.frag");
 
     std::cout << "Loading models..." << std::endl;
@@ -184,7 +184,8 @@ int main(int argc, char **argv)
 
         ourShader.use();
         ourShader.setFloat("time", glfwGetTime());
-        ourShader.setVec3("light.position", lightPos);
+//        ourShader.setVec3("light.position", lightPos);
+        ourShader.setVec3("light.direction", -0.2f, -1.0f, -0.3f);
         ourShader.setVec3("viewPos", camera.Position);
 
         //light properties
