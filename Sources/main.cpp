@@ -123,7 +123,7 @@ int main(int argc, char **argv)
 	// Build and compile our shader program
 	// ------------------------------------
     std::cout << "Loading shaders..." << std::endl;
-	Shader ourShader("../../Shaders/direc_light.vert", "../../Shaders/direc_light.frag");
+	Shader ourShader("../../Shaders/flash_light.vert", "../../Shaders/flash_light.frag");
     Shader lightShader("../../Shaders/light.vert", "../../Shaders/light.frag");
 
     std::cout << "Loading models..." << std::endl;
@@ -184,8 +184,10 @@ int main(int argc, char **argv)
 
         ourShader.use();
         ourShader.setFloat("time", glfwGetTime());
-//        ourShader.setVec3("light.position", lightPos);
-        ourShader.setVec3("light.direction", -0.2f, -1.0f, -0.3f);
+        ourShader.setVec3("light.position", camera.Position);
+        ourShader.setVec3("light.direction", camera.Front);
+        ourShader.setFloat("light.cutOff", glm::cos(glm::radians(12.5f)));
+        ourShader.setFloat("light.outerCutOff", glm::cos(glm::radians(17.5f)));
         ourShader.setVec3("viewPos", camera.Position);
 
         //light properties
@@ -200,9 +202,12 @@ int main(int argc, char **argv)
 
 //        ourShader.setVec3("light.ambient", ambientColor);
 //        ourShader.setVec3("light.diffuse", diffuseColor); // darken diffuse light a bit
-        ourShader.setVec3("light.ambient", 0.2f, 0.2f, 0.2f);
-        ourShader.setVec3("light.diffuse", 0.5f, 0.5f, 0.5f);
+        ourShader.setVec3("light.ambient", 0.1f, 0.1f, 0.1f);
+        ourShader.setVec3("light.diffuse", 0.8f, 0.8f, 0.8f);
         ourShader.setVec3("light.specular", 1.0f, 1.0f, 1.0f); // The specular component is usually kept at vec3(1.0) shining at full intensity
+        ourShader.setFloat("light.constant", 1.0f);
+        ourShader.setFloat("light.linear", 0.09f);
+        ourShader.setFloat("light.quadratic", 0.032f);
         ourShader.setFloat("material.shininess", 0.5f);
 
 
