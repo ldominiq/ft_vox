@@ -136,6 +136,7 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene)
 
 unsigned int Model::TextureFromFile(const char *path, const std::string &directory, bool gamma = false)
 {
+    (void) gamma;
     std::string filename = std::string(path);
     filename = directory + '/' + filename;
 

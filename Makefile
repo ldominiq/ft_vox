@@ -1,29 +1,39 @@
-# c++ -std=c++11 -Werror *.cpp -L Libraries/lib -lglad -lglfw3 -framework OpenGL -framework IOKit -framework Cocoa
+NAME        := ft_vox
+CC          := g++
+FLAGS       := -DLINUX -std=c++11 -Wall -Wextra -Werror
 
-NAME        := scop
-CC          := c++
-FLAGS       := -std=c++11 -Wall -Wextra -Werror
+# Include and library paths
+INCLUDES    := -I Libraries -I Libraries/include
+LDFLAGS     := -L Libraries/lib
 
-SRCS        := $(wildcard *.cpp)
+# Static library (.a) included directly
+LIBS        := $(LDFLAGS) Libraries/lib/libassimp.a \
+               -lGL -lGLU -lglfw3 -lX11 -lXxf86vm -lXrandr -lpthread -lXi -lz
+
+# Source and object files
+SRCS        := $(wildcard Sources/*.cpp)
 OBJS        := $(SRCS:.cpp=.o)
 
+# Compile .cpp to .o
 .cpp.o:
-	$(CC) $(FLAGS) -c $< -o $@
+	$(CC) $(FLAGS) $(INCLUDES) -c $< -o $@
 
-${NAME}:    ${OBJS}
+# Link objects to final executable
+$(NAME): $(OBJS)
 	@echo "\033[1;32mCompilation completed successfully.\033[0m"
-	$(CC) $(FLAGS) -o ${NAME} ${OBJS} -L Libraries/lib -lglad -lglfw3
+	$(CC) $(FLAGS) $(INCLUDES) -o $(NAME) $(OBJS) $(LIBS)
 
-all:        ${NAME}
+# Build targets
+all: $(NAME)
 
 clean:
-	@rm -f *.o
+	@rm -f $(OBJS)
 	@echo "\033[1;31mAll object files removed.\033[0m"
 
-fclean:     clean
-	@rm -f ${NAME}
+fclean: clean
+	@rm -f $(NAME)
 	@echo "\033[1;31mExecutable removed.\033[0m"
 
-re:         fclean all
+re: fclean all
 
-.PHONY:     all clean fclean re
+.PHONY: all clean fclean re

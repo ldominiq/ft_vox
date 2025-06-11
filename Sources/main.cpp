@@ -124,13 +124,13 @@ int main(int argc, char **argv)
 	// Build and compile our shader program
 	// ------------------------------------
     std::cout << "Loading shaders..." << std::endl;
-	Shader lightingShader("../../Shaders/lighting.vert", "../../Shaders/lighting.frag");
-    Shader lightCubeShader("../../Shaders/light.vert", "../../Shaders/light.frag");
+	Shader lightingShader("Shaders/lighting.vert", "Shaders/lighting.frag");
+    Shader lightCubeShader("Shaders/light.vert", "Shaders/light.frag");
 
     std::cout << "Loading models..." << std::endl;
-    Model ourModel("../../Models/box/cube.obj");
+    Model ourModel("Models/box/cube.obj");
 
-    Model lightModel("../../Models/box/cube.obj");
+    Model lightModel("Models/box/cube.obj");
 
 //    if (!ourModel.loaded)
 //    {
