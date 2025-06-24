@@ -35,6 +35,7 @@ glm::mat4 model = glm::mat4(1.0f);
 glm::mat4 light = glm::mat4(1.0f);
 
 bool firstMouse = true;
+bool focused = true;
 float lastX =  (float)SCR_WIDTH / 2.0;
 float lastY =  (float)SCR_HEIGHT / 2.0;
 
@@ -92,7 +93,7 @@ int main(int argc, char **argv)
     #endif
 
 	// GLFW: window creation
-	GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "OpenGL(SCOP)", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "OpenGL(FT_VOX)", nullptr, nullptr);
 	if (window == nullptr)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -338,11 +339,13 @@ void processInput(GLFWwindow *window)
         glfwSetWindowShouldClose(window, true);
 
     // Handle wireframe, points, and fill modes
-    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glLineWidth(3.0f);
+    }
     if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
-        glPointSize(2.0f);
+        glPointSize(8.0f);
     }
     if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS)
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -438,7 +441,6 @@ void processInput(GLFWwindow *window)
 
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 {
-	(void) window;
     //    1. Calculate the mouse's offset since the last frame.
     //    2. Add the offset values to the camera's yaw and pitch values.
     //    3. Add some constraints to the minimum/maximum pitch values.
@@ -447,11 +449,28 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
     float xpos = static_cast<float>(xposIn);
     float ypos = static_cast<float>(yposIn);
 
-    if (firstMouse)
-    {
+    bool currentFocus = glfwGetWindowAttrib(window, GLFW_FOCUSED);
+
+    // If focus changed, update cursor state
+    if (currentFocus != focused) {
+        focused = currentFocus;
+        if (focused) {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            firstMouse = true; // reset to prevent jump on regain focus
+        } else {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+        return; // skip processing when focus just changed
+    }
+
+    if (!focused)
+        return; // don't process movement if not focused
+
+    if (firstMouse) {
         lastX = xpos;
         lastY = ypos;
         firstMouse = false;
+        return;
     }
 
     float xoffset = xpos - lastX;
@@ -460,7 +479,7 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
     lastX = xpos;
     lastY = ypos;
 
-    camera.ProcessMouseMovement(xoffset, yoffset);
+    camera.ProcessMouseMovement(xoffset, yoffset);   
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
