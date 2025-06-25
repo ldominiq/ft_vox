@@ -138,7 +138,7 @@ int main(int argc, char **argv)
 
     Model lightModel("Models/box/cube.obj");
 
-    Model groundCubes("Models/box/cube.obj");
+    Model groundCubes("Models/grass/Grass_Block.obj");
 
 //    if (!ourModel.loaded)
 //    {
@@ -161,6 +161,7 @@ int main(int argc, char **argv)
             glm::mat4 groundModel = glm::mat4(1.0f);
             groundModel = glm::translate(groundModel, glm::vec3(i, -5.0f, j));
             groundModel = glm::scale(groundModel, glm::vec3(0.5f)); // scale it down to fit the scene
+            groundModel = glm::rotate(groundModel, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
             groundModels.push_back(groundModel);
         }
     }
