@@ -122,6 +122,11 @@ int main(int argc, char **argv)
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
 
+    // enable face culling
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW); // counter-clockwise winding order
+
 	// Build and compile our shader program
 	// ------------------------------------
     std::cout << "Loading shaders..." << std::endl;
