@@ -133,6 +133,8 @@ int main(int argc, char **argv)
 
     Model lightModel("Models/box/cube.obj");
 
+    Model groundCubes("Models/box/cube.obj");
+
 //    if (!ourModel.loaded)
 //    {
 //        glfwTerminate();
@@ -145,6 +147,18 @@ int main(int argc, char **argv)
 
     // removes VSync (breaks model movement because deltaTime is different)
     // glfwSwapInterval(0);
+
+    // populate ground model without space
+    // this is a 100x100 grid of cubes, each cube is 1x1x1
+    std::vector<glm::mat4> groundModels;
+    for (int i = -100; i < 100; ++i) {
+        for (int j = -100; j < 100; ++j) {
+            glm::mat4 groundModel = glm::mat4(1.0f);
+            groundModel = glm::translate(groundModel, glm::vec3(i, -5.0f, j));
+            groundModel = glm::scale(groundModel, glm::vec3(0.5f)); // scale it down to fit the scene
+            groundModels.push_back(groundModel);
+        }
+    }
 
     // populate list of models
     std::vector<glm::mat4> models;
@@ -205,11 +219,11 @@ int main(int argc, char **argv)
         lightingShader.setFloat("material.shininess", 0.5f);
         lightingShader.setFloat("time", glfwGetTime());
 
-        // directional light
-//        lightingShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
-//        lightingShader.setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
-//        lightingShader.setVec3("dirLight.diffuse", 0.4f, 0.4f, 0.4f);
-//        lightingShader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
+        // directional light (sunlight)
+       lightingShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
+       lightingShader.setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
+       lightingShader.setVec3("dirLight.diffuse", 0.4f, 0.4f, 0.4f);
+       lightingShader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
         // point light 1
         lightingShader.setVec3("pointLights[0].position", pointLightPositions[0]);
         lightingShader.setVec3("pointLights[0].ambient", pointLightColors[0].x * 0.1,  pointLightColors[0].y * 0.1,  pointLightColors[0].z * 0.1);
@@ -275,6 +289,13 @@ int main(int argc, char **argv)
                 models[i] = glm::rotate(models[i], glm::radians(0.1f), glm::vec3(1.0f, 1.0f, 0.0f));
             lightingShader.setMat4("model", models[i]);
             ourModel.Draw(lightingShader);
+        }
+
+        // render the ground cubes
+        for (unsigned int i = 0; i < groundModels.size(); i++)
+        {
+            lightingShader.setMat4("model", groundModels[i]);
+            groundCubes.Draw(lightingShader);
         }
 
 
@@ -511,7 +532,7 @@ void show_infos(GLFWwindow* window) {
         std::string FPS = std::to_string((1.0 / deltaTime) * counter);
         std::string ms = std::to_string((deltaTime / counter) * 1000);
         std::string FOV = std::to_string(camera.Zoom);
-        std::string newTitle = "OpenGL(SCOP) - " + FPS + "FPS / " + ms + "ms --- FOV: " + FOV + "°";
+        std::string newTitle = "OpenGL(FT_VOX) - " + FPS + "FPS / " + ms + "ms --- FOV: " + FOV + "°";
         glfwSetWindowTitle(window, newTitle.c_str());
         prevTime = currentTime;
         counter = 0;
