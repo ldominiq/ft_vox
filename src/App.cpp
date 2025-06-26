@@ -28,7 +28,36 @@ void App::init() {
     window = glfwCreateWindow(1280, 720, "ft_vox", nullptr, nullptr);
     glfwMakeContextCurrent(window);
     gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
+
     glEnable(GL_DEPTH_TEST);
+    // enable face culling
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CW);
+
+    // Mouse movement event handling
+    camera = new Camera(glm::vec3(0.0f, 0.0f, 3.0f));
+    glfwSetWindowUserPointer(window, this);
+    glfwSetCursorPosCallback(window, [](GLFWwindow* w, double xpos, double ypos) {
+        static App* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(w));
+        if (app) {
+            if (app->firstMouse) {
+                app->lastX = xpos;
+                app->lastY = ypos;
+                app->firstMouse = false;
+            }
+            float xoffset = xpos - app->lastX;
+            float yoffset = app->lastY - ypos; // Reversed: y-coordinates go from bottom to top
+            
+            app->lastX = xpos;
+            app->lastY = ypos;
+            
+            app->camera->processMouseMovement(xoffset, yoffset);
+        }
+    });
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    
+
 }
 
 void App::loadResources() {
@@ -65,7 +94,21 @@ void App::loadResources() {
 }
 
 void App::render() {
+    // Initialize the time variables for frame rate calculation
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
+
+
     while (!glfwWindowShouldClose(window)) {
+
+        // Calculate delta time for frame rate
+        float currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
+        processInput();
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glActiveTexture(GL_TEXTURE0);
@@ -73,9 +116,10 @@ void App::render() {
         glUseProgram(shaderProgram);
 
         glm::mat4 model = glm::mat4(1.0f);
-        glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -2));
+        glm::mat4 view = camera->getViewMatrix();
         glm::mat4 proj = glm::perspective(glm::radians(80.0f), 1280.0f / 720.0f, 0.1f, 100.0f);
 
+        // Set the uniform matrices in the shader
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
@@ -83,6 +127,7 @@ void App::render() {
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
+        // Swap buffers and poll events (keys pressed, mouse movement, etc.)
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -96,6 +141,23 @@ void App::run() {
 
 void App::cleanup() {
     glfwTerminate();
+}
+
+void App::processInput(){
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        camera->processKeyboard(Camera_Movement::FORWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        camera->processKeyboard(Camera_Movement::BACKWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        camera->processKeyboard(Camera_Movement::LEFT, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        camera->processKeyboard(Camera_Movement::RIGHT, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 static unsigned int loadShader(const char* vertPath, const char* fragPath) {
