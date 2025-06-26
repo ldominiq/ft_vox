@@ -3,6 +3,7 @@
 //
 
 #include "App.hpp"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <stb_image/stb_image.h>
@@ -14,6 +15,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 GLFWwindow* window;
+Renderer* renderer;
 
 static unsigned int loadShader(const char* vertPath, const char* fragPath);
 static unsigned int loadTexture(const char* path);
@@ -29,14 +31,17 @@ void App::init() {
     glfwMakeContextCurrent(window);
     gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
 
+    renderer = new Renderer();
+    
     glEnable(GL_DEPTH_TEST);
+    
     // enable face culling
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
-    glFrontFace(GL_CW);
+    glFrontFace(GL_CCW);
 
     // Mouse movement event handling
-    camera = new Camera(glm::vec3(0.0f, 0.0f, 3.0f));
+    camera = new Camera(glm::vec3(0.0f, 2.0f, 0.0f));
     glfwSetWindowUserPointer(window, this);
     glfwSetCursorPosCallback(window, [](GLFWwindow* w, double xpos, double ypos) {
         static App* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(w));
@@ -61,33 +66,10 @@ void App::init() {
 }
 
 void App::loadResources() {
-    float vertices[] = {
-        // positions       // tex coords
-        0.5f, 0.5f, 0.0f,  1.0f, 1.0f,
-        0.5f, -0.5f, 0.0f,  1.0f, 0.0f,
-        -0.5f, -0.5f, 0.0f,  0.0f, 0.0f,
-        -0.5f, 0.5f, 0.0f,   0.0f, 1.0f,
-    };
-    unsigned int indices[] = { 0, 1, 3, 1, 2, 3 };
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-    // Attributes
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+    // Load shaders and textures
 
     shaderProgram = loadShader("shaders/simple.vert", "shaders/simple.frag");
-    texture = loadTexture("assets/textures/grass.png");
+    texture = loadTexture("assets/textures/dirt.png");
 
     glUseProgram(shaderProgram);
     glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);
@@ -115,17 +97,19 @@ void App::render() {
         glBindTexture(GL_TEXTURE_2D, texture);
         glUseProgram(shaderProgram);
 
-        glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 view = camera->getViewMatrix();
-        glm::mat4 proj = glm::perspective(glm::radians(80.0f), 1280.0f / 720.0f, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(80.0f), 1280.0f / 720.0f, 0.1f, 160.0f);
+    
 
         // Set the uniform matrices in the shader
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
-        glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        for (int x = -8; x <= 8;x++){
+            for (int z = -8; z <= 8; z++){
+                renderer->drawCube(glm::vec3(x, 0, z), shaderProgram);
+            }
+        }
 
         // Swap buffers and poll events (keys pressed, mouse movement, etc.)
         glfwSwapBuffers(window);

@@ -2,9 +2,11 @@
 // Created by lucas on 6/25/25.
 //
 
-#include "Camera.hpp"
 #ifndef APP_HPP
 #define APP_HPP
+
+#include "Camera.hpp"
+#include "Renderer.hpp"
 
 class App {
 public:
