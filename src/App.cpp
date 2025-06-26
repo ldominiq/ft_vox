@@ -27,9 +27,21 @@ void App::init() {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    window = glfwCreateWindow(1280, 720, "ft_vox", nullptr, nullptr);
+
+    // Monitor infos
+    monitor = glfwGetPrimaryMonitor();
+    mode = glfwGetVideoMode(monitor);
+
+    window = glfwCreateWindow(windowedWidth, windowedHeight, "ft_vox", nullptr, nullptr);
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* w, int width, int height) {
+        (void)w;
+        glViewport(0, 0, width, height);
+    });
+
     glfwMakeContextCurrent(window);
     gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
+
+    glfwGetFramebufferSize(window, &windowedWidth, &windowedHeight);
 
     renderer = new Renderer();
     
@@ -93,8 +105,13 @@ void App::render() {
         glBindTexture(GL_TEXTURE_2D, texture);
         glUseProgram(shaderProgram);
 
+        // window aspect ratio
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
+        float aspect = static_cast<float>(width) / static_cast<float>(height);
+        
         glm::mat4 view = camera->getViewMatrix();
-        glm::mat4 projection = glm::perspective(glm::radians(80.0f), 1280.0f / 720.0f, 0.1f, 160.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(80.0f), aspect, 0.1f, 160.0f);
     
 
         // Set the uniform matrices in the shader
@@ -128,6 +145,15 @@ void App::cleanup() {
 }
 
 void App::processInput(){
+    static bool f11Held = false;
+    if (glfwGetKey(window, GLFW_KEY_F11) == GLFW_PRESS && !f11Held) {
+        toggleDisplayMode();
+        f11Held = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_F11) == GLFW_RELEASE) {
+        f11Held = false;
+    }
+
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         camera->processKeyboard(Camera_Movement::FORWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
@@ -163,6 +189,25 @@ void App::updateWindowTitle() {
     }
 
 }
+
+void App::toggleDisplayMode() {
+    if (displayMode == DisplayMode::Windowed) {
+        // Save windowed size & position
+        glfwGetWindowPos(window, &windowedX, &windowedY);
+        glfwGetWindowSize(window, &windowedWidth, &windowedHeight);
+
+        // Go to fullscreen (exclusive)
+        glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        displayMode = DisplayMode::Fullscreen;
+
+    } else {
+        // Back to windowed
+        glfwSetWindowMonitor(window, nullptr, windowedX, windowedY, windowedWidth, windowedHeight, 0);
+        glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_TRUE);
+        displayMode = DisplayMode::Windowed;
+    }
+}
+
 
 static unsigned int loadShader(const char* vertPath, const char* fragPath) {
     std::ifstream vFile(vertPath), fFile(fragPath);

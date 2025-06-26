@@ -7,6 +7,7 @@
 
 #include "Camera.hpp"
 #include "Renderer.hpp"
+#include <GLFW/glfw3.h>
 
 class App {
 public:
@@ -22,6 +23,7 @@ private:
     void cleanup();
     void processInput();
     void updateWindowTitle();
+    void toggleDisplayMode();
 
     unsigned int VAO, VBO, EBO, shaderProgram, texture;
 
@@ -35,6 +37,21 @@ private:
 
     float lastTitleUpdate = 0.0f;
     int frameCount = 0;
+
+    GLFWmonitor* monitor;
+    const GLFWvidmode* mode;
+
+    enum class DisplayMode {
+        Windowed,
+        Fullscreen
+    };
+    DisplayMode displayMode = DisplayMode::Windowed;
+
+
+    int windowedX = 100;
+    int windowedY = 100;
+    int windowedWidth = 1280;
+    int windowedHeight = 720;
 };
 
 #endif //APP_HPP
