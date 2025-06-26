@@ -76,19 +76,15 @@ void App::loadResources() {
 }
 
 void App::render() {
-    // Initialize the time variables for frame rate calculation
-    float currentFrame = glfwGetTime();
-    deltaTime = currentFrame - lastFrame;
-    lastFrame = currentFrame;
-
 
     while (!glfwWindowShouldClose(window)) {
-
+        
         // Calculate delta time for frame rate
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
-
+        
+        updateWindowTitle();
         processInput();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -142,6 +138,26 @@ void App::processInput(){
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
+void App::updateWindowTitle() {
+    float currentFrame = glfwGetTime();
+    frameCount++;
+
+    if (currentFrame - lastTitleUpdate >= 0.5f) {
+        float fps = frameCount / (currentFrame - lastTitleUpdate);
+        float msPerFrame = 1000.0f / fps;
+
+        std::string title = "OpenGL (ft_vox) - " +
+            std::to_string((int)fps) + " FPS / " +
+            std::to_string(msPerFrame).substr(0, 5) + " ms";
+
+        glfwSetWindowTitle(window, title.c_str());
+
+        lastTitleUpdate = currentFrame;
+        frameCount = 0;
+    }
+
 }
 
 static unsigned int loadShader(const char* vertPath, const char* fragPath) {

@@ -21,6 +21,7 @@ private:
     void render();
     void cleanup();
     void processInput();
+    void updateWindowTitle();
 
     unsigned int VAO, VBO, EBO, shaderProgram, texture;
 
@@ -29,7 +30,11 @@ private:
     bool firstMouse = true;
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
+
     bool wireframe = false;
+
+    float lastTitleUpdate = 0.0f;
+    int frameCount = 0;
 };
 
 #endif //APP_HPP
