@@ -44,6 +44,8 @@ void App::init() {
     glfwGetFramebufferSize(window, &windowedWidth, &windowedHeight);
 
     renderer = new Renderer();
+
+    chunk = new Chunk(0, 0); // Create a chunk at origin
     
     glEnable(GL_DEPTH_TEST);
     
@@ -118,14 +120,18 @@ void App::render() {
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
         
-        int amount = 500;
-        std::vector<glm::vec3> cubePositions;
-        for (int x = -amount; x <= amount; ++x) {
-            for (int z = -amount; z <= amount; ++z) {
-                cubePositions.push_back(glm::vec3(x, 0.0f, z));
-            }
-        }
-        renderer->drawInstances(cubePositions, shaderProgram);
+        // int amount = 500;
+        // std::vector<glm::vec3> cubePositions;
+        // for (int x = -amount; x <= amount; ++x) {
+        //     for (int z = -amount; z <= amount; ++z) {
+        //         cubePositions.push_back(glm::vec3(x, 0.0f, z));
+        //     }
+        // }
+        // renderer->drawInstances(cubePositions, shaderProgram);
+
+        const auto& blocks = chunk->getVisibleBlocks();
+        renderer->drawInstances(blocks, shaderProgram);
+
 
 
         // Swap buffers and poll events (keys pressed, mouse movement, etc.)

@@ -7,6 +7,7 @@
 
 #include "Camera.hpp"
 #include "Renderer.hpp"
+#include "Chunk.hpp"
 #include <GLFW/glfw3.h>
 
 class App {
@@ -52,6 +53,8 @@ private:
     int windowedY = 100;
     int windowedWidth = 1280;
     int windowedHeight = 720;
+
+    Chunk* chunk;
 };
 
 #endif //APP_HPP
