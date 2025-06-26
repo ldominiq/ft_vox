@@ -72,12 +72,12 @@ Renderer::~Renderer() {
 }
 
 void Renderer::initCubeMesh() {
-    GLuint EBO;
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
     glGenBuffers(1, &EBO);
 
     glBindVertexArray(VAO);
+
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices, GL_STATIC_DRAW);
 
@@ -86,15 +86,30 @@ void Renderer::initCubeMesh() {
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 }
 
-void Renderer::drawCube(const glm::vec3& position, GLuint shaderProgram) {
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), position);
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, &model[0][0]);
-
+void Renderer::drawInstances(const std::vector<glm::vec3>& positions, GLuint shaderProgram) {
+    
+    glUseProgram(shaderProgram);
+    // Allocate & bind instance VBO
+    if (instanceVBO == 0) {
+        glGenBuffers(1, &instanceVBO);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+    // static or dynamic?
+    glBufferData(GL_ARRAY_BUFFER, positions.size() * sizeof(glm::vec3), positions.data(), GL_DYNAMIC_DRAW);
+    
     glBindVertexArray(VAO);
-    // glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
+
+    // Set up instance attribute layout
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glVertexAttribDivisor(2, 1); // Tell OpenGL this is an instanced vertex attribute
+
+    // Draw the instances
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 36, positions.size());
+
 }

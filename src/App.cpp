@@ -100,12 +100,16 @@ void App::render() {
         // Set the uniform matrices in the shader
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-
-        for (int x = -8; x <= 8;x++){
-            for (int z = -8; z <= 8; z++){
-                renderer->drawCube(glm::vec3(x, 0, z), shaderProgram);
+        
+        int amount = 500;
+        std::vector<glm::vec3> cubePositions;
+        for (int x = -amount; x <= amount; ++x) {
+            for (int z = -amount; z <= amount; ++z) {
+                cubePositions.push_back(glm::vec3(x, 0.0f, z));
             }
         }
+        renderer->drawInstances(cubePositions, shaderProgram);
+
 
         // Swap buffers and poll events (keys pressed, mouse movement, etc.)
         glfwSwapBuffers(window);

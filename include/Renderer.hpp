@@ -4,16 +4,17 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glad/glad.h>
+#include <vector>
 
 class Renderer {
 public:
     Renderer();
     ~Renderer();
 
-    void drawCube(const glm::vec3&position, GLuint shaderProgram);
+    void drawInstances(const std::vector<glm::vec3>& positions, GLuint shaderProgram);
 
 private:
-    GLuint VAO, VBO;
+    GLuint VAO, VBO, instanceVBO, EBO;
     void initCubeMesh();
 };
 
