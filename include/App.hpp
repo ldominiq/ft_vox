@@ -28,25 +28,31 @@ private:
 
     unsigned int VAO, VBO, EBO, shaderProgram, texture;
 
-    Camera* camera;
-    float lastX = 400, lastY = 300;
-    bool firstMouse = true;
-    float deltaTime = 0.0f;
-    float lastFrame = 0.0f;
-
-    bool wireframe = false;
-
-    float lastTitleUpdate = 0.0f;
-    int frameCount = 0;
-
-    GLFWmonitor* monitor;
-    const GLFWvidmode* mode;
-
     enum class DisplayMode {
         Windowed,
         Fullscreen
     };
     DisplayMode displayMode = DisplayMode::Windowed;
+
+    Camera* camera;
+    GLFWmonitor* monitor;
+    const GLFWvidmode* mode;
+    Chunk* chunk;
+    GLuint textureShader;
+    GLuint gradientShader;
+    GLuint* activeShader;   // pointer to the currently active shader program
+
+    float lastX = 400, lastY = 300;
+    bool firstMouse = true;
+    float deltaTime = 0.0f;
+    float lastFrame = 0.0f;
+
+
+    bool wireframe = false;
+
+
+    float lastTitleUpdate = 0.0f;
+    int frameCount = 0;
 
 
     int windowedX = 100;
@@ -54,7 +60,7 @@ private:
     int windowedWidth = 1280;
     int windowedHeight = 720;
 
-    Chunk* chunk;
+    bool useGradientShader = false;    
 };
 
 #endif //APP_HPP

@@ -82,11 +82,14 @@ void App::init() {
 void App::loadResources() {
     // Load shaders and textures
 
-    shaderProgram = loadShader("shaders/gradient.vert", "shaders/gradient.frag");
+    textureShader = loadShader("shaders/simple.vert", "shaders/simple.frag");
+    gradientShader = loadShader("shaders/gradient.vert", "shaders/gradient.frag");
     texture = loadTexture("assets/textures/dirt.png");
 
-    glUseProgram(shaderProgram);
-    glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);
+    activeShader = &textureShader;
+
+    glUseProgram(*activeShader);
+    glUniform1i(glGetUniformLocation(*activeShader, "texture1"), 0);
 }
 
 void App::render() {
@@ -105,7 +108,7 @@ void App::render() {
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
-        glUseProgram(shaderProgram);
+        glUseProgram(*activeShader);
 
         // window aspect ratio
         int width, height;
@@ -117,8 +120,8 @@ void App::render() {
     
 
         // Set the uniform matrices in the shader
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(glGetUniformLocation(*activeShader, "view"), 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(*activeShader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
         
         // int amount = 500;
         // std::vector<glm::vec3> cubePositions;
@@ -127,10 +130,10 @@ void App::render() {
         //         cubePositions.push_back(glm::vec3(x, 0.0f, z));
         //     }
         // }
-        // renderer->drawInstances(cubePositions, shaderProgram);
+        // renderer->drawInstances(cubePositions, *activeShader);
 
         const auto& blocks = chunk->getVisibleBlocks();
-        renderer->drawInstances(blocks, shaderProgram);
+        renderer->drawInstances(blocks, *activeShader);
 
 
 
@@ -152,12 +155,23 @@ void App::cleanup() {
 
 void App::processInput(){
     static bool f11Held = false;
+    static bool f2Held = false;
+
     if (glfwGetKey(window, GLFW_KEY_F11) == GLFW_PRESS && !f11Held) {
         toggleDisplayMode();
         f11Held = true;
     }
     if (glfwGetKey(window, GLFW_KEY_F11) == GLFW_RELEASE) {
         f11Held = false;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS && !f2Held) {
+        useGradientShader = !useGradientShader;
+        activeShader = useGradientShader ? &gradientShader : &textureShader;
+        f2Held = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_RELEASE) {
+        f2Held = false;
     }
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
