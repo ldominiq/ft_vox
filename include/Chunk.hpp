@@ -4,6 +4,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include "Block.hpp"
+#include <glad/glad.h>
 
 class Chunk {
 public:
@@ -19,13 +20,19 @@ public:
 
     const std::vector<glm::vec3>& getVisibleBlocks() const;
 
+    void buildMesh(); // Build the mesh for rendering
+    void draw(GLuint shaderProgram) const; // Draw the chunk using the given shader program
+
 private:
     BlockType blocks[WIDTH][HEIGHT][DEPTH]; // 3D array of blocks
     std::vector<glm::vec3> visibleBlocks; // List of visible blocks for rendering
     int originX; // X coordinate of the chunck origin
     int originZ; // Z coordinate of the chunck origin
+    GLuint VAO = 0, VBO = 0;
+    std::vector<float> meshVertices; // Vertices for the mesh
 
     void updateVisibleBlocks();
+    void addFace(int x, int y, int z, int face); // Add a face to the mesh vertices
 };
 
 #endif
