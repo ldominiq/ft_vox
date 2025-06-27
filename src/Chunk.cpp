@@ -96,8 +96,18 @@ void Chunk::buildMesh() {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, meshVertices.size() * sizeof(float), meshVertices.data(), GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    // layout(location = 0) = vec3 position
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+
+    // layout(location = 1) = vec2 texCoord
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    // layout(location = 2) = float vertexY
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(5 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
 }
 
 void Chunk::addFace(int x, int y, int z, int face) {
@@ -131,12 +141,34 @@ void Chunk::addFace(int x, int y, int z, int face) {
         0,1,1,  0,1,0,  0,0,0 }
     };
 
+    static const float uvCoords[6][12] = {
+        // Simple UVs per face (0-1 range)
+        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 },
+        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 },
+        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 },
+        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 },
+        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 },
+        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 }
+    };
 
-    for (int i = 0; i < 18; i += 3) {
-        meshVertices.push_back(faceX + faceData[face][i]);
-        meshVertices.push_back(faceY + faceData[face][i + 1]);
-        meshVertices.push_back(faceZ + faceData[face][i + 2]);
+
+
+    for (int i = 0; i < 6; ++i) {
+        float px = faceX + faceData[face][i * 3 + 0];
+        float py = faceY + faceData[face][i * 3 + 1];
+        float pz = faceZ + faceData[face][i * 3 + 2];
+
+        float u = uvCoords[face][i * 2 + 0];
+        float v = uvCoords[face][i * 2 + 1];
+
+        meshVertices.push_back(px);
+        meshVertices.push_back(py);
+        meshVertices.push_back(pz);
+        meshVertices.push_back(u);
+        meshVertices.push_back(v);
+        meshVertices.push_back(py);  // send Y again for gradient
     }
+
 
 }
 
