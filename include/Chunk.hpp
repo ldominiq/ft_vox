@@ -7,9 +7,9 @@
 
 class Chunk {
 public:
-    static const int WIDTH = 16; // Size of the chunck in blocks
+    static const int WIDTH = 32; // Size of the chunck in blocks
     static const int HEIGHT = 256; // Height of the chunck in blocks
-    static const int DEPTH = 16; // Depth of the chunck in blocks
+    static const int DEPTH = 32; // Depth of the chunck in blocks
 
     Chunk(int chunkX, int chunkZ);
     

@@ -82,7 +82,7 @@ void App::init() {
 void App::loadResources() {
     // Load shaders and textures
 
-    shaderProgram = loadShader("shaders/simple.vert", "shaders/simple.frag");
+    shaderProgram = loadShader("shaders/gradient.vert", "shaders/gradient.frag");
     texture = loadTexture("assets/textures/dirt.png");
 
     glUseProgram(shaderProgram);

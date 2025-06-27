@@ -12,7 +12,7 @@ Chunk::Chunk(int chunkX, int chunkZ) : originX(chunkX * WIDTH), originZ(chunkZ *
 void Chunk::generate() {
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
-            int height = 1 + (rand() % 4); // Random height between 1 and 4
+            int height = 1 + (rand() % 16); // Random height between 1 and 4
             for (int y = 0; y < HEIGHT; ++y) {
                 if (y < height)
                     blocks[x][y][z] = BlockType::GRASS; // Fill with dirt
