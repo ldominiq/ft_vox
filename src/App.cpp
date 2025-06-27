@@ -133,7 +133,9 @@ void App::cleanup() {
 void App::processInput(){
     static bool f11Held = false;
     static bool f2Held = false;
+    static bool f1Held = false;
 
+    // Fullscreen toggle with F11
     if (glfwGetKey(window, GLFW_KEY_F11) == GLFW_PRESS && !f11Held) {
         toggleDisplayMode();
         f11Held = true;
@@ -142,6 +144,22 @@ void App::processInput(){
         f11Held = false;
     }
 
+    // Toggle wireframe mode with F1
+    if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS && !f1Held && !wireframe) {
+        wireframe = true;
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        f1Held = true;
+    }
+    else if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS && !f1Held && wireframe) {
+        wireframe = false;
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        f1Held = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_RELEASE) {
+        f1Held = false;
+    }
+
+    // Toggle wireframe mode with F2
     if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS && !f2Held) {
         useGradientShader = !useGradientShader;
         activeShader = useGradientShader ? &gradientShader : &textureShader;
@@ -151,6 +169,7 @@ void App::processInput(){
         f2Held = false;
     }
 
+    // Move camera with WASD keys
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         camera->processKeyboard(Camera_Movement::FORWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
@@ -161,10 +180,6 @@ void App::processInput(){
         camera->processKeyboard(Camera_Movement::RIGHT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
-    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 void App::updateWindowTitle() {
