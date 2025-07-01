@@ -44,7 +44,7 @@ void App::init() {
     glFrontFace(GL_CCW);
 
     // Mouse movement event handling
-    camera = new Camera(glm::vec3(0.0f, 2.0f, 0.0f));
+    camera = new Camera(glm::vec3(-3.0f, 32.0f, 0.0f));
     glfwSetWindowUserPointer(window, this);
     glfwSetCursorPosCallback(window, [](GLFWwindow* w, double xpos, double ypos) {
         static App* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(w));
@@ -79,6 +79,8 @@ void App::loadResources() {
 
     glUseProgram(*activeShader);
     glUniform1i(glGetUniformLocation(*activeShader, "texture1"), 0);
+
+    activeShader = &gradientShader;
 }
 
 void App::render() {
@@ -105,7 +107,7 @@ void App::render() {
         float aspect = static_cast<float>(width) / static_cast<float>(height);
         
         glm::mat4 view = camera->getViewMatrix();
-        glm::mat4 projection = glm::perspective(glm::radians(80.0f), aspect, 0.1f, 160.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(80.0f), aspect, 0.1f, 320.0f);
     
 
         // Set the uniform matrices in the shader
@@ -159,7 +161,7 @@ void App::processInput(){
         f1Held = false;
     }
 
-    // Toggle wireframe mode with F2
+    // Toggle texture/gradient shader with F2
     if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS && !f2Held) {
         useGradientShader = !useGradientShader;
         activeShader = useGradientShader ? &gradientShader : &textureShader;
@@ -180,6 +182,18 @@ void App::processInput(){
         camera->processKeyboard(Camera_Movement::RIGHT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+
+    // Move up and down with A and E
+    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+        camera->Position.y += 1.0f;
+    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+        camera->Position.y -= 1.0f;
+
+    // Move faster
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+        camera->MovementSpeed = 50.0f;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE)
+        camera->MovementSpeed = 10.0f;
 }
 
 void App::updateWindowTitle() {

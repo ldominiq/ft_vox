@@ -69,7 +69,7 @@ private:
     int windowedWidth = 1280;
     int windowedHeight = 720;
 
-    bool useGradientShader = false;    
+    bool useGradientShader = true;
 };
 
 #endif //APP_HPP
