@@ -3,8 +3,13 @@
 
 #include <vector>
 #include <glm/glm.hpp>
-#include "Block.hpp"
 #include <glad/glad.h>
+#include <cstdlib>
+#include <cmath>
+#include <iostream>
+#include <ostream>
+#include "Block.hpp"
+#include "fastnoise/FastNoiseLite.h"
 
 class Chunk {
 public:

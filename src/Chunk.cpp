@@ -2,22 +2,31 @@
 #define CHUNCK_HPP
 
 #include "Chunk.hpp"
-#include <cstdlib>
-#include <cmath>
 
 Chunk::Chunk(int chunkX, int chunkZ) : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH){
     generate();
 }
 
 void Chunk::generate() {
+    FastNoiseLite noise;
+    noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    noise.SetFrequency(0.01f); // Lower = smoother terrain
+
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
-            int height = 1 + (rand() % 16); // Random height between 1 and 4
+            // World-space position
+            int worldX = originX + x;
+            int worldZ = originZ + z;
+
+            // Get height from noise
+            float n = noise.GetNoise((float)worldX, (float)worldZ);
+            int height = (int)(n * 20.0f + 10); // Scale and shift
+            // Fill blocks
             for (int y = 0; y < HEIGHT; ++y) {
                 if (y < height)
-                    blocks[x][y][z] = BlockType::GRASS; // Fill with dirt
+                    blocks[x][y][z] = BlockType::GRASS;
                 else
-                    blocks[x][y][z] = BlockType::AIR; // Fill with air above the height
+                    blocks[x][y][z] = BlockType::AIR;
             }
         }
     }
