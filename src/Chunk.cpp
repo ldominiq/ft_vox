@@ -3,6 +3,29 @@
 
 #include "Chunk.hpp"
 
+
+const float TILE_SIZE = 1.0f / 4.0f; // 0.25f for a 4x4 texture atlas
+
+// This function maps block type + face to UV offset
+glm::vec2 getTextureOffset(BlockType type, int face) {
+    switch (type) {
+        case BlockType::GRASS:
+            if (face == 2) return { 0.0f, 0.0f }; // top = grass
+            else if (face == 3) return { 2.0f * TILE_SIZE, 0.0f }; // bottom = dirt
+            else return { 1.0f * TILE_SIZE, 0.0f }; // side = grass-side
+
+        case BlockType::DIRT:
+            return { 2.0f * TILE_SIZE, 0.0f };
+
+        case BlockType::STONE:
+            return { 3.0f * TILE_SIZE, 0.0f };
+
+        default:
+            return { 0.0f, 0.0f };
+    }
+}
+
+
 Chunk::Chunk(int chunkX, int chunkZ) : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH){
     generate();
 }
@@ -33,11 +56,20 @@ void Chunk::generate() {
             float base = noise.GetNoise(wx, wz);
             float ridges = 1.0f - fabs(ridgeNoise.GetNoise((float)worldX, (float)worldZ));
 
-            float heightF = base * 15.0f + ridges * 10.0f + 40.0f; // + 40.0f = base terrain altitude
+            float heightF = base * 15.0f + ridges * 10.0f + 20.0f; // + 40.0f = base terrain altitude
             int height = static_cast<int>(glm::clamp(heightF, 1.0f, (float)HEIGHT - 1));
 
             for (int y = 0; y < HEIGHT; ++y) {
-                blocks[x][y][z] = (y < height) ? BlockType::GRASS : BlockType::AIR;
+                // Set blocks based on height
+                if (y < height - 4) {
+                    blocks[x][y][z] = BlockType::STONE; // Stone below the surface
+                } else if (y < height - 1) {
+                    blocks[x][y][z] = BlockType::DIRT; // Dirt layer
+                } else if (y == height) {
+                    blocks[x][y][z] = BlockType::GRASS; // Grass on top
+                } else {
+                    blocks[x][y][z] = BlockType::AIR; // Air above the surface
+                }
             }
         }
     }
@@ -163,16 +195,36 @@ void Chunk::addFace(int x, int y, int z, int face) {
         0,1,1,  0,1,0,  0,0,0 }
     };
 
-    static const float uvCoords[6][12] = {
-        // Simple UVs per face (0-1 range)
-        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 },
-        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 },
-        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 },
-        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 },
-        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 },
-        { 0,0, 1,0, 1,1,  1,1, 0,1, 0,0 }
+    static const float uvCoords[12] = {
+        0, 0,
+        1, 0,
+        1, 1,
+        1, 1,
+        0, 1,
+        0, 0
     };
 
+    // Get block type for this position
+    BlockType type = blocks[x][y][z];
+
+    // Determine UV offset in atlas based on block type and face
+    glm::vec2 offset;
+    switch (type) {
+        case BlockType::GRASS:
+            if (face == 2) offset = { 0.0f, 0.0f }; // top = grass-top
+            else if (face == 3) offset = { 2.0f * TILE_SIZE, 0.0f }; // bottom = dirt
+            else offset = { 1.0f * TILE_SIZE, 0.0f }; // side = grass-side
+            break;
+        case BlockType::DIRT:
+            offset = { 2.0f * TILE_SIZE, 0.0f };
+            break;
+        case BlockType::STONE:
+            offset = { 3.0f * TILE_SIZE, 0.0f };
+            break;
+        default:
+            offset = { 0.0f, 0.0f };
+            break;
+    }
 
 
     for (int i = 0; i < 6; ++i) {
@@ -180,8 +232,9 @@ void Chunk::addFace(int x, int y, int z, int face) {
         float py = faceY + faceData[face][i * 3 + 1];
         float pz = faceZ + faceData[face][i * 3 + 2];
 
-        float u = uvCoords[face][i * 2 + 0];
-        float v = uvCoords[face][i * 2 + 1];
+        float u = uvCoords[i * 2 + 0] * TILE_SIZE + offset.x;
+        float v = uvCoords[i * 2 + 1]; // DO NOT scale v — we only have 1 row
+
 
         meshVertices.push_back(px);
         meshVertices.push_back(py);
