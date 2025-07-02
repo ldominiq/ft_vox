@@ -27,10 +27,12 @@ public:
     void updateVisibleChunks(const glm::vec3& cameraPos);
     void render(GLuint shaderProgram);
 
+    Chunk* getChunk(int chunkX, int chunkZ);
+
 private:
     using ChunkKey = std::pair<int, int>; // (chunkX, chunkZ)
     std::unordered_map<ChunkPos, Chunk*> chunks;
-
+    std::vector<Chunk*> renderedChunks;
 
     Chunk* getOrCreateChunk(int chunkX, int chunkZ);
     static ChunkKey toKey(int chunkX, int chunkZ);
