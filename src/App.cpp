@@ -109,7 +109,7 @@ void App::render() {
         float aspect = static_cast<float>(width) / static_cast<float>(height);
         
         glm::mat4 view = camera->getViewMatrix();
-        glm::mat4 projection = glm::perspective(glm::radians(80.0f), aspect, 0.1f, 320.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(80.0f), aspect, 0.1f, renderDistance);
     
 
         // Set the uniform matrices in the shader
