@@ -30,6 +30,9 @@ void Chunk::generate() {
             }
         }
     }
+    std::cout << "Generating terrain at: " << originX << ", " << originZ << std::endl;
+
+    buildMesh();
 
     updateVisibleBlocks();
 }

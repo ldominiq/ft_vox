@@ -8,6 +8,7 @@
 #include "Camera.hpp"
 #include "Renderer.hpp"
 #include "Chunk.hpp"
+#include "World.hpp"
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -47,6 +48,7 @@ private:
     GLFWmonitor* monitor;
     const GLFWvidmode* mode;
     Chunk* chunk;
+    World* world;
     GLuint textureShader;
     GLuint gradientShader;
     GLuint* activeShader;   // pointer to the currently active shader program

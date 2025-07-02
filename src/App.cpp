@@ -33,8 +33,10 @@ void App::init() {
 
     glfwGetFramebufferSize(window, &windowedWidth, &windowedHeight);
 
-    chunk = new Chunk(0, 0); // Create a chunk at origin
-    chunk->buildMesh();
+    // chunk = new Chunk(0, 0); // Create a chunk at origin
+    // chunk->buildMesh();
+
+    world = new World();
     
     glEnable(GL_DEPTH_TEST);
     
@@ -114,7 +116,8 @@ void App::render() {
         glUniformMatrix4fv(glGetUniformLocation(*activeShader, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(*activeShader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
         
-        chunk->draw(*activeShader);
+        world->updateVisibleChunks(camera->Position);
+        world->render(*activeShader);
 
         // Swap buffers and poll events (keys pressed, mouse movement, etc.)
         glfwSwapBuffers(window);
