@@ -25,7 +25,7 @@ public:
     ~World();
 
     void updateVisibleChunks(const glm::vec3& cameraPos);
-    void render(GLuint shaderProgram);
+    void render(Shader* shaderProgram);
 
 private:
     using ChunkKey = std::pair<int, int>; // (chunkX, chunkZ)

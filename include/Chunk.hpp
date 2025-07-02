@@ -9,6 +9,7 @@
 #include <iostream>
 #include <ostream>
 #include "Block.hpp"
+#include "Shader.hpp"
 #include "fastnoise/FastNoiseLite.h"
 
 class Chunk {
@@ -26,7 +27,7 @@ public:
     const std::vector<glm::vec3>& getVisibleBlocks() const;
 
     void buildMesh(); // Build the mesh for rendering
-    void draw(GLuint shaderProgram) const; // Draw the chunk using the given shader program
+    void draw(Shader* shaderProgram) const; // Draw the chunk using the given shader program
 
 private:
     BlockType blocks[WIDTH][HEIGHT][DEPTH]; // 3D array of blocks
