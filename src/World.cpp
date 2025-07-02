@@ -23,13 +23,12 @@ Chunk* World::getOrCreateChunk(int chunkX, int chunkZ) {
         Chunk* chunk = new Chunk(chunkX, chunkZ);
         chunks[key] = chunk;
     }
-    std::cout << "Created chunk at: " << chunkX << ", " << chunkZ << std::endl;
 
     return chunks[key];
 }
 
 void World::updateVisibleChunks(const glm::vec3& cameraPos) {
-    const int radius = 3; // Load 7×7 grid
+    const int radius = 8; // Load chunks around the player
 
     int currentChunkX = static_cast<int>(std::floor(cameraPos.x / Chunk::WIDTH));
     int currentChunkZ = static_cast<int>(std::floor(cameraPos.z / Chunk::DEPTH));
@@ -42,7 +41,11 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
 }
 
 void World::render(GLuint shaderProgram) {
+    int count = 0;
     for (auto& pair : chunks) {
+        count++;
         pair.second->draw(shaderProgram);
     }
+    std::cout << "Chunks rendered: " << count << std::endl;
+
 }

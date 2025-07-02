@@ -10,7 +10,15 @@ Chunk::Chunk(int chunkX, int chunkZ) : originX(chunkX * WIDTH), originZ(chunkZ *
 void Chunk::generate() {
     FastNoiseLite noise;
     noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    noise.SetFrequency(0.01f); // Lower = smoother terrain
+    noise.SetFrequency(0.005f); // Lower frequency = wider terrain
+
+    FastNoiseLite ridgeNoise;
+    ridgeNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    ridgeNoise.SetFrequency(0.01f); // Ridge noise for terrain features
+
+    FastNoiseLite warp;
+    warp.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    warp.SetFrequency(0.02f);
 
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
@@ -18,23 +26,25 @@ void Chunk::generate() {
             int worldX = originX + x;
             int worldZ = originZ + z;
 
-            // Get height from noise
-            float n = noise.GetNoise((float)worldX, (float)worldZ);
-            int height = (int)(n * 20.0f + 10); // Scale and shift
-            // Fill blocks
+            // Warping: displace coordinates for baseNoise
+            float wx = worldX + warp.GetNoise((float)worldX, (float)worldZ) * 20.0f;
+            float wz = worldZ + warp.GetNoise((float)worldZ, (float)worldX) * 20.0f;
+
+            float base = noise.GetNoise(wx, wz);
+            float ridges = 1.0f - fabs(ridgeNoise.GetNoise((float)worldX, (float)worldZ));
+
+            float heightF = base * 15.0f + ridges * 10.0f + 40.0f; // + 40.0f = base terrain altitude
+            int height = static_cast<int>(glm::clamp(heightF, 1.0f, (float)HEIGHT - 1));
+
             for (int y = 0; y < HEIGHT; ++y) {
-                if (y < height)
-                    blocks[x][y][z] = BlockType::GRASS;
-                else
-                    blocks[x][y][z] = BlockType::AIR;
+                blocks[x][y][z] = (y < height) ? BlockType::GRASS : BlockType::AIR;
             }
         }
     }
-    std::cout << "Generating terrain at: " << originX << ", " << originZ << std::endl;
 
-    buildMesh();
-
+    
     updateVisibleBlocks();
+    buildMesh();
 }
 
 BlockType Chunk::getBlock(int x, int y, int z) const {
