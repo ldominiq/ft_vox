@@ -124,35 +124,50 @@ void Chunk::generate() {
 
             
             // Get biome value and normalize to [0,1]
-            float b = biomeNoise.GetNoise(xf, zf) * 0.5f + 0.5f;
+            float biomeBlendFactor = biomeNoise.GetNoise(xf, zf) * 0.5f + 0.5f;
 
             // Determine biome type
             BiomeType biome;
-            if (b < 0.2f)       biome = BiomeType::DESERT;
-            else if (b < 0.4f)  biome = BiomeType::PLAINS;
-            else if (b < 0.6f)  biome = BiomeType::FOREST;
-            else if (b < 0.8f)  biome = BiomeType::MOUNTAIN;
+            if (biomeBlendFactor < 0.2f)       biome = BiomeType::DESERT;
+            else if (biomeBlendFactor < 0.4f)  biome = BiomeType::PLAINS;
+            else if (biomeBlendFactor < 0.6f)  biome = BiomeType::FOREST;
+            else if (biomeBlendFactor < 0.8f)  biome = BiomeType::MOUNTAIN;
             else                biome = BiomeType::SNOW;
+
+            float plainsH   = baseNoise.GetNoise(wx, wz) * 6.0f + 10.0f;
+            float forestH   = baseNoise.GetNoise(wx, wz) * 10.0f + 44.0f;
+            float desertH   = baseNoise.GetNoise(wx, wz) * 5.0f + 36.0f;
+            float mountainH = baseNoise.GetNoise(wx * 0.6f, wz * 0.6f) * 28.0f + 100.0f;
+            float snowH     = baseNoise.GetNoise(wx * 0.5f, wz * 0.5f) * 18.0f + 110.0f;
+
 
             // Terrain height by biome
             float heightF = 0.0f;
 
-            switch (biome) {
-                case BiomeType::PLAINS:
-                    heightF = baseNoise.GetNoise(wx, wz) * 6.0f + 40.0f;
-                    break;
-                case BiomeType::FOREST:
-                    heightF = baseNoise.GetNoise(wx, wz) * 10.0f + 44.0f;
-                    break;
-                case BiomeType::DESERT:
-                    heightF = baseNoise.GetNoise(wx, wz) * 5.0f + 36.0f;
-                    break;
-                case BiomeType::MOUNTAIN:
-                    heightF = baseNoise.GetNoise(wx * 0.6f, wz * 0.6f) * 28.0f + 60.0f;
-                    break;
-                case BiomeType::SNOW:
-                    heightF = baseNoise.GetNoise(wx * 0.5f, wz * 0.5f) * 18.0f + 70.0f;
-                    break;
+            // b in [0, 1], we split into 4 blend zones
+            if (biomeBlendFactor < 0.25f) {
+                // desert → plains
+                float t = biomeBlendFactor / 0.25f;
+                heightF = glm::mix(desertH, plainsH, t);
+                biome = (t < 0.5f) ? BiomeType::DESERT : BiomeType::PLAINS;
+
+            } else if (biomeBlendFactor < 0.5f) {
+                // plains → forest
+                float t = (biomeBlendFactor - 0.25f) / 0.25f;
+                heightF = glm::mix(plainsH, forestH, t);
+                biome = (t < 0.5f) ? BiomeType::PLAINS : BiomeType::FOREST;
+
+            } else if (biomeBlendFactor < 0.75f) {
+                // forest → mountain
+                float t = (biomeBlendFactor - 0.5f) / 0.25f;
+                heightF = glm::mix(forestH, mountainH, t);
+                biome = (t < 0.5f) ? BiomeType::FOREST : BiomeType::MOUNTAIN;
+
+            } else {
+                // mountain → snow
+                float t = (biomeBlendFactor - 0.75f) / 0.25f;
+                heightF = glm::mix(mountainH, snowH, t);
+                biome = (t < 0.5f) ? BiomeType::MOUNTAIN : BiomeType::SNOW;
             }
 
             int height = static_cast<int>(glm::clamp(heightF, 1.0f, (float)HEIGHT - 1));
