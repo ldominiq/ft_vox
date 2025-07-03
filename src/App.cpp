@@ -8,7 +8,15 @@ GLFWwindow* window;
 
 static unsigned int loadTexture(const char* path);
 
-App::App() {}
+App::App(): VAO(0), VBO(0), EBO(0), shaderProgram(0), texture(0), camera(nullptr), monitor(nullptr), mode(nullptr),
+            chunk(nullptr),
+            world(nullptr),
+            skybox(nullptr),
+            textureShader(nullptr),
+            gradientShader(nullptr),
+            activeShader(nullptr) {
+}
+
 App::~App() { cleanup(); }
 
 void App::init() {
@@ -21,19 +29,17 @@ void App::init() {
     mode = glfwGetVideoMode(monitor);
 
     window = glfwCreateWindow(windowedWidth, windowedHeight, "ft_vox", nullptr, nullptr);
-    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* w, int width, int height) {
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* w, const int width, const int height) {
         (void)w;
         glViewport(0, 0, width, height);
     });
 
     glfwMakeContextCurrent(window);
-    gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
+    gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress));
 
     glfwGetFramebufferSize(window, &windowedWidth, &windowedHeight);
 
-    // chunk = new Chunk(0, 0); // Create a chunk at origin
-    // chunk->buildMesh();
-    std::vector<std::string> faces = {
+    const std::vector<std::string> faces = {
         "assets/skybox/right.bmp",  // +X
         "assets/skybox/left.bmp",   // -X
         "assets/skybox/top.bmp",    // +Y
@@ -58,16 +64,16 @@ void App::init() {
     // Mouse movement event handling
     camera = new Camera(glm::vec3(-3.0f, 32.0f, 0.0f));
     glfwSetWindowUserPointer(window, this);
-    glfwSetCursorPosCallback(window, [](GLFWwindow* w, double xpos, double ypos) {
-        static App* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(w));
+    glfwSetCursorPosCallback(window, [](GLFWwindow* w, const double xpos, const double ypos) {
+        static App* app = static_cast<App*>(glfwGetWindowUserPointer(w));
         if (app) {
             if (app->firstMouse) {
                 app->lastX = xpos;
                 app->lastY = ypos;
                 app->firstMouse = false;
             }
-            float xoffset = xpos - app->lastX;
-            float yoffset = app->lastY - ypos; // Reversed: y-coordinates go from bottom to top
+            const float xoffset = xpos - app->lastX;
+            const float yoffset = app->lastY - ypos; // Reversed: y-coordinates go from bottom to top
             
             app->lastX = xpos;
             app->lastY = ypos;
@@ -98,7 +104,7 @@ void App::render() {
     while (!glfwWindowShouldClose(window)) {
         
         // Calculate delta time for frame rate
-        float currentFrame = glfwGetTime();
+        const float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
         
@@ -114,7 +120,7 @@ void App::render() {
         // window aspect ratio
         int width, height;
         glfwGetFramebufferSize(window, &width, &height);
-        float aspect = static_cast<float>(width) / static_cast<float>(height);
+        const float aspect = static_cast<float>(width) / static_cast<float>(height);
         
         glm::mat4 view = camera->getViewMatrix();
         glm::mat4 projection = glm::perspective(glm::radians(80.0f), aspect, 0.1f, renderDistance);
@@ -210,15 +216,15 @@ void App::processInput(){
 }
 
 void App::updateWindowTitle() {
-    float currentFrame = glfwGetTime();
+    const float currentFrame = glfwGetTime();
     frameCount++;
 
     if (currentFrame - lastTitleUpdate >= 0.5f) {
-        float fps = frameCount / (currentFrame - lastTitleUpdate);
-        float msPerFrame = 1000.0f / fps;
+        const float fps = frameCount / (currentFrame - lastTitleUpdate);
+        const float msPerFrame = 1000.0f / fps;
 
-        std::string title = "OpenGL (ft_vox) - " +
-            std::to_string((int)fps) + " FPS / " +
+        const std::string title = "OpenGL (ft_vox) - " +
+            std::to_string(static_cast<int>(fps)) + " FPS / " +
             std::to_string(msPerFrame).substr(0, 5) + " ms";
 
         glfwSetWindowTitle(window, title.c_str());
@@ -231,7 +237,7 @@ void App::updateWindowTitle() {
 
 void App::toggleDisplayMode() {
     if (displayMode == DisplayMode::Windowed) {
-        // Save windowed size & position
+        // Save windowed size and position
         glfwGetWindowPos(window, &windowedX, &windowedY);
         glfwGetWindowSize(window, &windowedWidth, &windowedHeight);
 
@@ -256,7 +262,7 @@ static unsigned int loadTexture(const char* path) {
     stbi_set_flip_vertically_on_load(true);
     unsigned char* data = stbi_load(path, &w, &h, &ch, 0);
     if (data) {
-        GLenum format = ch == 4 ? GL_RGBA : GL_RGB;
+        const GLenum format = ch == 4 ? GL_RGBA : GL_RGB;
         glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, format, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
     } else {

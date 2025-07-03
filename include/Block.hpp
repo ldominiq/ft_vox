@@ -12,7 +12,7 @@ enum class BlockType {
 
 class Block {
 public:
-    Block(BlockType type = BlockType::AIR);
+    explicit Block(BlockType type = BlockType::AIR);
     BlockType getType() const;
     bool isVisible() const;
 private:

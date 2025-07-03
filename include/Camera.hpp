@@ -23,7 +23,7 @@ public:
     float MovementSpeed;
     float MouseSensitivity;
 
-    Camera(glm::vec3 position);
+    explicit Camera(glm::vec3 position);
 
     glm::mat4 getViewMatrix() const;
     void processKeyboard(Camera_Movement direction, float deltaTime);

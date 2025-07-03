@@ -11,16 +11,16 @@
 
 class Skybox {
 public:
-    Skybox(const std::vector<std::string>& faces);
+    explicit Skybox(const std::vector<std::string>& faces);
 
-    void draw(const glm::mat4& view, const glm::mat4& projection);
+    void draw(const glm::mat4& view, const glm::mat4& projection) const;
 
 private:
-    GLuint skyboxVAO, skyboxVBO;
+    GLuint skyboxVAO{}, skyboxVBO{};
     GLuint cubemapTexture;
     Shader* shader;
 
-    GLuint loadCubemap(const std::vector<std::string>& faces);
+    static GLuint loadCubemap(const std::vector<std::string>& faces);
 };
 
 #endif

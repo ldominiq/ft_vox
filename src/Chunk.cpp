@@ -1,13 +1,10 @@
-#ifndef CHUNCK_HPP
-#define CHUNCK_HPP
-
 #include "Chunk.hpp"
 
 
-const float TILE_SIZE = 1.0f / 4.0f; // 0.25f for a 4x4 texture atlas
+constexpr float TILE_SIZE = 1.0f / 4.0f; // 0.25f for a 4x4 texture atlas
 
 // This function maps block type + face to UV offset
-glm::vec2 getTextureOffset(BlockType type, int face) {
+glm::vec2 getTextureOffset(const BlockType type, const int face) {
     switch (type) {
         case BlockType::GRASS:
             if (face == 2) return { 0.0f, 0.0f }; // top = grass
@@ -26,27 +23,26 @@ glm::vec2 getTextureOffset(BlockType type, int face) {
 }
 
 
-Chunk::Chunk(int chunkX, int chunkZ) : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH){
+Chunk::Chunk(const int chunkX, const int chunkZ) : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH){
     generate();
 }
 
-bool Chunk::hasAllAdjacentChunkLoaded() const
-{
-    return (adjacentChunks[NORTH] && adjacentChunks[EAST] && adjacentChunks[WEST] && adjacentChunks[SOUTH]);
+bool Chunk::hasAllAdjacentChunkLoaded() const {
+    return adjacentChunks[NORTH] && adjacentChunks[EAST] && adjacentChunks[WEST] && adjacentChunks[SOUTH];
 }
 
-void Chunk::setAdjacentChunks(int direction, Chunk *chunk){
+void Chunk::setAdjacentChunks(const int direction, Chunk *chunk){
     adjacentChunks[direction] = chunk;
 }
 
-void Chunk::carveWorm(glm::vec3 startPos, float radius, int steps, FastNoiseLite& noise) {
+void Chunk::carveWorm(const glm::vec3 startPos, const float radius, const int steps, const FastNoiseLite& noise) {
     glm::vec3 pos = startPos;
     glm::vec3 dir = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f)); // initial forward
 
     for (int i = 0; i < steps; ++i) {
         // Apply Perlin noise to rotate direction
-        float angleX = noise.GetNoise(pos.x, pos.y, pos.z) * 0.3f;
-        float angleY = noise.GetNoise(pos.y, pos.z, pos.x) * 0.3f;
+        const float angleX = noise.GetNoise(pos.x, pos.y, pos.z) * 0.3f;
+        const float angleY = noise.GetNoise(pos.y, pos.z, pos.x) * 0.3f;
 
         glm::mat4 rot =
             glm::rotate(glm::mat4(1.0f), angleX, glm::vec3(1, 0, 0)) *
@@ -61,12 +57,12 @@ void Chunk::carveWorm(glm::vec3 startPos, float radius, int steps, FastNoiseLite
         for (int y = -radius; y <= radius; ++y)
         for (int z = -radius; z <= radius; ++z) {
             glm::vec3 offset(x, y, z);
-            glm::vec3 p = pos + offset;
+            const glm::vec3 p = pos + offset;
 
             if (glm::length(offset) <= radius) {
-                int bx = (int)(p.x - originX);
-                int by = (int)(p.y);
-                int bz = (int)(p.z - originZ);
+                const int bx = static_cast<int>(p.x - originX);
+                const int by = static_cast<int>(p.y);
+                const int bz = static_cast<int>(p.z - originZ);
 
                 if (bx >= 0 && bx < WIDTH && by >= 0 && by < HEIGHT && bz >= 0 && bz < DEPTH) {
                     blocks[bx][by][bz] = BlockType::AIR;
@@ -96,18 +92,18 @@ void Chunk::generate() {
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
             // World-space position
-            int worldX = originX + x;
-            int worldZ = originZ + z;
+            const int worldX = originX + x;
+            const int worldZ = originZ + z;
 
             // Warping: displace coordinates for baseNoise
-            float wx = worldX + warp.GetNoise((float)worldX, (float)worldZ) * 2.0f;
-            float wz = worldZ + warp.GetNoise((float)worldZ, (float)worldX) * 2.0f;
+            const float wx = worldX + warp.GetNoise(static_cast<float>(worldX), static_cast<float>(worldZ)) * 2.0f;
+            const float wz = worldZ + warp.GetNoise(static_cast<float>(worldZ), static_cast<float>(worldX)) * 2.0f;
 
-            float base = noise.GetNoise(wx, wz);
-            float ridges = 1.0f - fabs(ridgeNoise.GetNoise((float)worldX, (float)worldZ));
+            const float base = noise.GetNoise(wx, wz);
+            const float ridges = 1.0f - fabs(ridgeNoise.GetNoise(static_cast<float>(worldX), static_cast<float>(worldZ)));
 
-            float heightF = base * 15.0f + ridges * 10.0f + 60.0f; // + 60.0f = base terrain altitude
-            int height = static_cast<int>(glm::clamp(heightF, 1.0f, (float)HEIGHT - 1));
+            const float heightF = base * 15.0f + ridges * 10.0f + 60.0f; // + 60.0f = base terrain altitude
+            const int height = static_cast<int>(glm::clamp(heightF, 1.0f, static_cast<float>(HEIGHT) - 1));
 
             for (int y = 0; y < HEIGHT; ++y) {
                 // Set blocks based on height
@@ -126,9 +122,9 @@ void Chunk::generate() {
 
 
     for (int i = 0; i < 4; ++i) {
-        float x = originX + rand() % WIDTH;
-        float y = 20 + rand() % 30; // underground
-        float z = originZ + rand() % DEPTH;
+        const float x = originX + rand() % WIDTH;
+        const float y = 20 + rand() % 30; // underground
+        const float z = originZ + rand() % DEPTH;
         carveWorm(glm::vec3(x, y, z), 2.0f, 200, wormNoise);
     }
 
@@ -250,23 +246,23 @@ void Chunk::buildMesh() {
     glBufferData(GL_ARRAY_BUFFER, meshVertices.size() * sizeof(float), meshVertices.data(), GL_STATIC_DRAW);
 
     // layout(location = 0) = vec3 position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), static_cast<void *>(nullptr));
     glEnableVertexAttribArray(0);
 
     // layout(location = 1) = vec2 texCoord
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void *>(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
     // layout(location = 2) = float vertexY
-    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(5 * sizeof(float)));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void *>(5 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
 }
 
 void Chunk::addFace(int x, int y, int z, int face) {
-    float faceX = static_cast<float>(originX + x);
-    float faceY = static_cast<float>(y);
-    float faceZ = static_cast<float>(originZ + z);
+    const float faceX = static_cast<float>(originX + x);
+    const float faceY = static_cast<float>(y);
+    const float faceZ = static_cast<float>(originZ + z);
 
     static const float faceData[6][18] = {
         // FRONT face (Z+)
@@ -304,7 +300,7 @@ void Chunk::addFace(int x, int y, int z, int face) {
     };
 
     // Get block type for this position
-    BlockType type = blocks[x][y][z];
+    const BlockType type = blocks[x][y][z];
 
     // Determine UV offset in atlas based on block type and face
     glm::vec2 offset;
@@ -346,10 +342,8 @@ void Chunk::addFace(int x, int y, int z, int face) {
 
 }
 
-void Chunk::draw(Shader* shaderProgram) const {
+void Chunk::draw(const Shader* shaderProgram) const {
     shaderProgram->use();
     glBindVertexArray(VAO);
     glDrawArrays(GL_TRIANGLES, 0, meshVertices.size() / 3);
 }
-
-#endif

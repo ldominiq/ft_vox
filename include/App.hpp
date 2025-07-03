@@ -32,7 +32,8 @@ private:
     void init();
     void loadResources();
     void render();
-    void cleanup();
+
+    static void cleanup();
     void processInput();
     void updateWindowTitle();
     void toggleDisplayMode();

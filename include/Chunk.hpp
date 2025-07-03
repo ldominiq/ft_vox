@@ -30,13 +30,13 @@ enum Direction {
 
 class Chunk {
 public:
-    static const int WIDTH = 32; // Size of the chunck in blocks
-    static const int HEIGHT = 256; // Height of the chunck in blocks
-    static const int DEPTH = 32; // Depth of the chunck in blocks
+    static constexpr int WIDTH = 32; // Size of the chunck in blocks
+    static constexpr int HEIGHT = 256; // Height of the chunck in blocks
+    static constexpr int DEPTH = 32; // Depth of the chunck in blocks
 
     Chunk(int chunkX, int chunkZ);
     
-    void carveWorm(glm::vec3 startPos, float radius, int steps, FastNoiseLite& noise);
+    void carveWorm(glm::vec3 startPos, float radius, int steps, const FastNoiseLite& noise);
     void generate();
     BlockType getBlock(int x, int y, int z) const;
     void setBlock(int x, int y, int z, BlockType type);
@@ -45,7 +45,7 @@ public:
 
 	void updateVisibleBlocks();
     void buildMesh(); // Build the mesh for rendering
-    void draw(Shader* shaderProgram) const; // Draw the chunk using the given shader program
+    void draw(const Shader* shaderProgram) const; // Draw the chunk using the given shader program
 
 	void setAdjacentChunks(int direction, Chunk *chunk);
 
