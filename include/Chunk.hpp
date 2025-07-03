@@ -11,6 +11,7 @@
 #include <iostream>
 #include <ostream>
 #include "Block.hpp"
+#include "Shader.hpp"
 #include "fastnoise/FastNoiseLite.h"
 
 struct Worm {
@@ -44,8 +45,12 @@ public:
 
 	void updateVisibleBlocks();
     void buildMesh(); // Build the mesh for rendering
+<<<<<<< HEAD
 
     void draw(GLuint shaderProgram) const; // Draw the chunk using the given shader program
+=======
+    void draw(Shader* shaderProgram) const; // Draw the chunk using the given shader program
+>>>>>>> master
 
 	void setAdjacentChunks(int direction, Chunk *chunk);
 

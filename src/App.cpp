@@ -5,9 +5,7 @@
 #include "App.hpp"
 
 GLFWwindow* window;
-Renderer* renderer;
 
-static unsigned int loadShader(const char* vertPath, const char* fragPath);
 static unsigned int loadTexture(const char* path);
 
 App::App() {}
@@ -35,6 +33,16 @@ void App::init() {
 
     // chunk = new Chunk(0, 0); // Create a chunk at origin
     // chunk->buildMesh();
+    std::vector<std::string> faces = {
+        "assets/skybox/right.jpg",  // +X
+        "assets/skybox/left.jpg",   // -X
+        "assets/skybox/top.jpg",    // +Y
+        "assets/skybox/bottom.jpg", // -Y
+        "assets/skybox/front.jpg",  // +Z
+        "assets/skybox/back.jpg"    // -Z
+    };
+
+    skybox = new Skybox(faces);
 
     world = new World();
     
@@ -73,16 +81,14 @@ void App::init() {
 void App::loadResources() {
     // Load shaders and textures
 
-    textureShader = loadShader("shaders/simple.vert", "shaders/simple.frag");
-    gradientShader = loadShader("shaders/gradient.vert", "shaders/gradient.frag");
+    textureShader = new Shader("shaders/simple.vert", "shaders/simple.frag");
+    gradientShader = new Shader("shaders/gradient.vert", "shaders/gradient.frag");
     texture = loadTexture("assets/textures/spritesheet.png");
 
-    activeShader = &textureShader;
+    activeShader = textureShader;
 
-    glUseProgram(*activeShader);
-    glUniform1i(glGetUniformLocation(*activeShader, "texture1"), 0);
-
-    activeShader = &gradientShader;
+    activeShader->use();
+    activeShader->setInt("texture1", 0);
 }
 
 void App::render() {
@@ -101,7 +107,7 @@ void App::render() {
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
-        glUseProgram(*activeShader);
+        activeShader->use();
 
         // window aspect ratio
         int width, height;
@@ -113,11 +119,13 @@ void App::render() {
     
 
         // Set the uniform matrices in the shader
-        glUniformMatrix4fv(glGetUniformLocation(*activeShader, "view"), 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(glGetUniformLocation(*activeShader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        activeShader->setMat4("view", view);
+        activeShader->setMat4("projection", projection);
         
         world->updateVisibleChunks(camera->Position);
-        world->render(*activeShader);
+        world->render(activeShader);
+        skybox->draw(camera->getViewMatrix(), projection);
+
 
         // Swap buffers and poll events (keys pressed, mouse movement, etc.)
         glfwSwapBuffers(window);
@@ -167,7 +175,7 @@ void App::processInput(){
     // Toggle texture/gradient shader with F2
     if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS && !f2Held) {
         useGradientShader = !useGradientShader;
-        activeShader = useGradientShader ? &gradientShader : &textureShader;
+        activeShader = useGradientShader ? textureShader : gradientShader;
         f2Held = true;
     }
     if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_RELEASE) {
@@ -235,35 +243,6 @@ void App::toggleDisplayMode() {
         glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_TRUE);
         displayMode = DisplayMode::Windowed;
     }
-}
-
-
-static unsigned int loadShader(const char* vertPath, const char* fragPath) {
-    std::ifstream vFile(vertPath), fFile(fragPath);
-    std::stringstream vStream, fStream;
-    vStream << vFile.rdbuf();
-    fStream << fFile.rdbuf();
-    std::string vStr = vStream.str(), fStr = fStream.str();
-    const char* vCode = vStr.c_str();
-    const char* fCode = fStr.c_str();
-
-    GLuint vert = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vert, 1, &vCode, NULL);
-    glCompileShader(vert);
-
-    GLuint frag = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(frag, 1, &fCode, NULL);
-    glCompileShader(frag);
-
-    GLuint prog = glCreateProgram();
-    glAttachShader(prog, vert);
-    glAttachShader(prog, frag);
-    glLinkProgram(prog);
-
-    glDeleteShader(vert);
-    glDeleteShader(frag);
-
-    return prog;
 }
 
 static unsigned int loadTexture(const char* path) {

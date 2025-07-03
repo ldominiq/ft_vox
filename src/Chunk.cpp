@@ -346,8 +346,8 @@ void Chunk::addFace(int x, int y, int z, int face) {
 
 }
 
-void Chunk::draw(GLuint shaderProgram) const {
-    glUseProgram(shaderProgram);
+void Chunk::draw(Shader* shaderProgram) const {
+    shaderProgram->use();
     glBindVertexArray(VAO);
     glDrawArrays(GL_TRIANGLES, 0, meshVertices.size() / 3);
 }

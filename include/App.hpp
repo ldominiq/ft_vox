@@ -6,9 +6,10 @@
 #define APP_HPP
 
 #include "Camera.hpp"
-#include "Renderer.hpp"
 #include "Chunk.hpp"
 #include "World.hpp"
+#include "Skybox.hpp"
+#include "Shader.hpp"
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -49,9 +50,10 @@ private:
     const GLFWvidmode* mode;
     Chunk* chunk;
     World* world;
-    GLuint textureShader;
-    GLuint gradientShader;
-    GLuint* activeShader;   // pointer to the currently active shader program
+    Skybox* skybox;
+    Shader* textureShader;
+    Shader* gradientShader;
+    Shader* activeShader;   // pointer to the currently active shader program
 
     float lastX = 400, lastY = 300;
     bool firstMouse = true;

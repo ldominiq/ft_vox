@@ -72,7 +72,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
     }
 }
 
-void World::render(GLuint shaderProgram) {
+void World::render(Shader* shaderProgram) {
     int count = 0;
     for (auto& pair : renderedChunks) {
         count++;
