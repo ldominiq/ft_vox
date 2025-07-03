@@ -5,6 +5,7 @@
 
 
 const float TILE_SIZE = 1.0f / 4.0f; // 0.25f for a 4x4 texture atlas
+std::vector<Worm> worms;
 
 // This function maps block type + face to UV offset
 glm::vec2 getTextureOffset(BlockType type, int face) {
@@ -39,24 +40,27 @@ void Chunk::setAdjacentChunks(int direction, Chunk *chunk){
     adjacentChunks[direction] = chunk;
 }
 
-void Chunk::carveWorm(glm::vec3 startPos, float radius, int steps, FastNoiseLite& noise) {
-    glm::vec3 pos = startPos;
-    glm::vec3 dir = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f)); // initial forward
+void Chunk::carveWorm(Worm &worm) {
+
+    glm::vec3 pos = worm.pos;
+    float radius = worm.radius;
+    int steps = worm.steps;
+    FastNoiseLite noise = *worm.noise;
+
+    glm::vec3 dir = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f));
 
     for (int i = 0; i < steps; ++i) {
-        // Apply Perlin noise to rotate direction
-        float angleX = noise.GetNoise(pos.x, pos.y, pos.z) * 0.3f;
-        float angleY = noise.GetNoise(pos.y, pos.z, pos.x) * 0.3f;
+        float angleX = noise.GetNoise(pos.x, pos.y, pos.z) * 0.5f;
+        float angleY = noise.GetNoise(pos.y, pos.z, pos.x) * 0.5f;
 
         glm::mat4 rot =
             glm::rotate(glm::mat4(1.0f), angleX, glm::vec3(1, 0, 0)) *
             glm::rotate(glm::mat4(1.0f), angleY, glm::vec3(0, 1, 0));
         dir = glm::normalize(glm::vec3(rot * glm::vec4(dir, 0.0f)));
 
-        // Move forward
         pos += dir * 1.0f;
 
-        // Carve a spherical area at pos
+        // Carve sphere — only if inside this chunk
         for (int x = -radius; x <= radius; ++x)
         for (int y = -radius; y <= radius; ++y)
         for (int z = -radius; z <= radius; ++z) {
@@ -77,13 +81,14 @@ void Chunk::carveWorm(glm::vec3 startPos, float radius, int steps, FastNoiseLite
 }
 
 void Chunk::generate() {
+    // === TERRAIN GENERATION (same as before) ===
     FastNoiseLite noise;
     noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    noise.SetFrequency(0.005f); // Lower frequency = wider terrain
+    noise.SetFrequency(0.005f);
 
     FastNoiseLite ridgeNoise;
     ridgeNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    ridgeNoise.SetFrequency(0.01f); // Ridge noise for terrain features
+    ridgeNoise.SetFrequency(0.01f);
 
     FastNoiseLite warp;
     warp.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
@@ -93,48 +98,67 @@ void Chunk::generate() {
     wormNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     wormNoise.SetFrequency(0.1f);
 
+    // ========== Base terrain ==========
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
-            // World-space position
-            int worldX = originX + x;
-            int worldZ = originZ + z;
+            float worldX = originX + x;
+            float worldZ = originZ + z;
 
-            // Warping: displace coordinates for baseNoise
-            float wx = worldX + warp.GetNoise((float)worldX, (float)worldZ) * 2.0f;
-            float wz = worldZ + warp.GetNoise((float)worldZ, (float)worldX) * 2.0f;
+            float wx = worldX + warp.GetNoise(worldX, worldZ) * 2.0f;
+            float wz = worldZ + warp.GetNoise(worldZ, worldX) * 2.0f;
 
             float base = noise.GetNoise(wx, wz);
-            float ridges = 1.0f - fabs(ridgeNoise.GetNoise((float)worldX, (float)worldZ));
+            float ridges = 1.0f - fabs(ridgeNoise.GetNoise(worldX, worldZ));
 
-            float heightF = base * 15.0f + ridges * 10.0f + 60.0f; // + 60.0f = base terrain altitude
+            float heightF = base * 15.0f + ridges * 10.0f + 60.0f;
             int height = static_cast<int>(glm::clamp(heightF, 1.0f, (float)HEIGHT - 1));
 
             for (int y = 0; y < HEIGHT; ++y) {
-                // Set blocks based on height
                 if (y < height - 4) {
-                    blocks[x][y][z] = BlockType::STONE; // Stone below the surface
+                    blocks[x][y][z] = BlockType::STONE;
                 } else if (y <= height - 1) {
-                    blocks[x][y][z] = BlockType::DIRT; // Dirt layer
+                    blocks[x][y][z] = BlockType::DIRT;
                 } else if (y == height) {
-                    blocks[x][y][z] = BlockType::GRASS; // Grass on top
+                    blocks[x][y][z] = BlockType::GRASS;
                 } else {
-                    blocks[x][y][z] = BlockType::AIR; // Air above the surface
+                    blocks[x][y][z] = BlockType::AIR;
                 }
             }
         }
     }
 
+    // ========== CAVE GENERATION ==========
+    int range = 2; // simulate worms from this many neighboring chunks
+    int worldSeed = 1337;
 
-    for (int i = 0; i < 4; ++i) {
-        float x = originX + rand() % WIDTH;
-        float y = 20 + rand() % 30; // underground
-        float z = originZ + rand() % DEPTH;
-        carveWorm(glm::vec3(x, y, z), 2.0f, 200, wormNoise);
+    for (int dx = -range; dx <= range; ++dx) {
+        for (int dz = -range; dz <= range; ++dz) {
+            int sourceChunkX = originX / WIDTH + dx;
+            int sourceChunkZ = originZ / DEPTH + dz;
+
+            // Seed RNG deterministically for each chunk
+            unsigned int seed = worldSeed ^ (sourceChunkX * 341873128712 + sourceChunkZ * 132897987541);
+            std::mt19937 rng(seed);
+
+            // int numWorms = (rng() % 2); // 0 to 1 worms per chunk
+            int numWorms = (rng() % 4 == 0) ? 1 : 0; //1 out of 5 to generate 1 worm
+
+            for (int i = 0; i < numWorms; ++i) {
+                float localX = (float)(rng() % WIDTH);
+                float localZ = (float)(rng() % DEPTH);
+                float worldX = sourceChunkX * WIDTH + localX;
+                float worldZ = sourceChunkZ * DEPTH + localZ;
+                float worldY = 10 + (rng() % 40); // underground
+
+                Worm worm = Worm(glm::vec3(worldX, worldY, worldZ), 2.0f, 300, &wormNoise);
+                // worms.emplace_back(glm::vec3(worldX, worldY, worldZ), 2.0f, 300, &wormNoise);
+
+                carveWorm(worm);
+            }
+        }
     }
-
-    // updateVisibleBlocks();
-    // buildMesh();
 }
+
 
 BlockType Chunk::getBlock(int x, int y, int z) const {
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH) {

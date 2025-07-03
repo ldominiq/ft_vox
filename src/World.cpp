@@ -78,5 +78,5 @@ void World::render(Shader* shaderProgram) {
         count++;
         pair->draw(shaderProgram);
     }
-    std::cout << "Chunks rendered: " << count << std::endl;
+    // std::cout << "Chunks rendered: " << count << std::endl;
 }

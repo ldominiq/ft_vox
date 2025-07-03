@@ -14,11 +14,17 @@
 #include "Shader.hpp"
 #include "fastnoise/FastNoiseLite.h"
 
+#include <random>
+
 struct Worm {
     glm::vec3 pos;
-    glm::vec3 dir;
-    float length;
-    float radius;
+	float radius = 2.0f;
+	int steps = 120;
+	FastNoiseLite *noise;
+
+	Worm(const glm::vec3& p, float r, int s, FastNoiseLite *n)
+		: pos(p), radius(r), steps(s), noise(n) {}
+
 };
 
 enum Direction {
@@ -36,7 +42,7 @@ public:
 
     Chunk(int chunkX, int chunkZ);
     
-    void carveWorm(glm::vec3 startPos, float radius, int steps, FastNoiseLite& noise);
+    void carveWorm(Worm &worm);
     void generate();
     BlockType getBlock(int x, int y, int z) const;
     void setBlock(int x, int y, int z, BlockType type);
