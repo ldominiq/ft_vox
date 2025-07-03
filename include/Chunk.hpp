@@ -20,10 +20,10 @@ struct Worm {
     glm::vec3 pos;
 	float radius = 2.0f;
 	int steps = 120;
-	FastNoiseLite *noise;
+	// FastNoiseLite noise;
 
-	Worm(const glm::vec3& p, float r, int s, FastNoiseLite *n)
-		: pos(p), radius(r), steps(s), noise(n) {}
+	Worm(const glm::vec3& p, float r, int s)
+		: pos(p), radius(r), steps(s) {}
 
 };
 
@@ -36,9 +36,9 @@ enum Direction {
 
 class Chunk {
 public:
-    static const int WIDTH = 32; // Size of the chunck in blocks
+    static const int WIDTH = 16; // Size of the chunck in blocks
     static const int HEIGHT = 256; // Height of the chunck in blocks
-    static const int DEPTH = 32; // Depth of the chunck in blocks
+    static const int DEPTH = 16; // Depth of the chunck in blocks
 
     Chunk(int chunkX, int chunkZ);
     

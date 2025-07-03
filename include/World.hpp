@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <cmath>
 
+#include <future>
+
 using ChunkPos = std::pair<int, int>; // (chunkX, chunkZ)
 
 template <>
@@ -33,7 +35,9 @@ private:
     using ChunkKey = std::pair<int, int>; // (chunkX, chunkZ)
     std::unordered_map<ChunkPos, Chunk*> chunks;
     std::vector<Chunk*> renderedChunks;
+    std::vector<std::pair<int, int>> chunksToGenerate;
 
+    void linkNeighbors(int chunkX, int chunkZ, Chunk* chunk);
     Chunk* getOrCreateChunk(int chunkX, int chunkZ);
     static ChunkKey toKey(int chunkX, int chunkZ);
 };
