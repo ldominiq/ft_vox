@@ -34,12 +34,12 @@ void App::init() {
     // chunk = new Chunk(0, 0); // Create a chunk at origin
     // chunk->buildMesh();
     std::vector<std::string> faces = {
-        "assets/skybox/right.jpg",  // +X
-        "assets/skybox/left.jpg",   // -X
-        "assets/skybox/top.jpg",    // +Y
-        "assets/skybox/bottom.jpg", // -Y
-        "assets/skybox/front.jpg",  // +Z
-        "assets/skybox/back.jpg"    // -Z
+        "assets/skybox/right.bmp",  // +X
+        "assets/skybox/left.bmp",   // -X
+        "assets/skybox/top.bmp",    // +Y
+        "assets/skybox/bottom.bmp", // -Y
+        "assets/skybox/front.bmp",  // +Z
+        "assets/skybox/back.bmp"    // -Z
     };
 
     skybox = new Skybox(faces);
@@ -52,6 +52,8 @@ void App::init() {
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
+
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
     // Mouse movement event handling
     camera = new Camera(glm::vec3(-3.0f, 32.0f, 0.0f));
@@ -260,6 +262,13 @@ static unsigned int loadTexture(const char* path) {
     } else {
         std::cerr << "Failed to load texture\n";
     }
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    
     stbi_image_free(data);
+    
     return texID;
 }
