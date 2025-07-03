@@ -91,7 +91,7 @@ void App::loadResources() {
 
     textureShader = new Shader("shaders/simple.vert", "shaders/simple.frag");
     gradientShader = new Shader("shaders/gradient.vert", "shaders/gradient.frag");
-    texture = loadTexture("assets/textures/spritesheet.png");
+    texture = loadTexture("assets/textures/spritesheet3.png");
 
     activeShader = textureShader;
 

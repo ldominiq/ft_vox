@@ -28,11 +28,19 @@ enum Direction {
 	WEST
 };
 
+enum class BiomeType {
+    PLAINS,
+    DESERT,
+    FOREST,
+    MOUNTAIN,
+    SNOW
+};
+
 class Chunk {
 public:
-    static constexpr int WIDTH = 32; // Size of the chunck in blocks
+    static constexpr int WIDTH = 16; // Size of the chunck in blocks
     static constexpr int HEIGHT = 256; // Height of the chunck in blocks
-    static constexpr int DEPTH = 32; // Depth of the chunck in blocks
+    static constexpr int DEPTH = 16; // Depth of the chunck in blocks
 
     Chunk(int chunkX, int chunkZ);
     

@@ -7,7 +7,10 @@ enum class BlockType {
     AIR,
     GRASS,
     DIRT,
-    STONE
+    STONE,
+    SAND,
+    SNOW
+
 };
 
 class Block {

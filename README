@@ -1,22 +1,9 @@
 Build and install GLFW:
 https://stackoverflow.com/questions/17768008/how-to-build-install-glfw-3-and-use-it-in-a-linux-project
 
+// Move libglfw3.a in external/GLFW
+
 Required GLFW dependencies for Wayland and X11:
 (https://www.glfw.org/docs/latest/compile_guide.html#compile_deps_wayland)
 
 sudo apt install libwayland-dev libxkbcommon-dev xorg-dev
-
-ASSIMP
-
-https://github.com/assimp/assimp/blob/master/Build.md
-
-git clone https://github.com/assimp/assimp.git
-
-// set BUILD_SHARED_LIBS to OFF
-
-cd assimp
-cmake CMakeLists.txt
-cmake --build .
-
-// move libassimp.a in Libraries/lib/
-// move assimp headers in Libraries/include/assimp/
