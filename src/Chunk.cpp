@@ -1,25 +1,45 @@
 #include "Chunk.hpp"
 
 
-constexpr float TILE_SIZE = 1.0f / 4.0f; // 0.25f for a 4x4 texture atlas
+const int ATLAS_COLS = 6;
+const int ATLAS_ROWS = 1;
+
+
 
 // This function maps block type + face to UV offset
 glm::vec2 getTextureOffset(const BlockType type, const int face) {
+    int col = 0;
+    int row = 0;
+
     switch (type) {
         case BlockType::GRASS:
-            if (face == 2) return { 0.0f, 0.0f }; // top = grass
-            else if (face == 3) return { 2.0f * TILE_SIZE, 0.0f }; // bottom = dirt
-            else return { 1.0f * TILE_SIZE, 0.0f }; // side = grass-side
+            if (face == 2)      { col = 0; row = 0; } // top
+            else if (face == 3) { col = 2; row = 0; } // bottom = dirt
+            else                { col = 1; row = 0; } // side = grass-side
+            break;
 
         case BlockType::DIRT:
-            return { 2.0f * TILE_SIZE, 0.0f };
+            col = 2; row = 0;
+            break;
 
         case BlockType::STONE:
-            return { 3.0f * TILE_SIZE, 0.0f };
+            col = 3; row = 0;
+            break;
+
+        case BlockType::SAND:
+            col = 4; row = 0;
+            break;
+
+        case BlockType::SNOW:
+            col = 5; row = 0;
+            break;
 
         default:
-            return { 0.0f, 0.0f };
+            col = 0; row = 0;
+            break;
     }
+
+    return glm::vec2(col, row);
 }
 
 
@@ -73,13 +93,13 @@ void Chunk::carveWorm(const glm::vec3 startPos, const float radius, const int st
 }
 
 void Chunk::generate() {
-    FastNoiseLite noise;
-    noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    noise.SetFrequency(0.005f); // Lower frequency = wider terrain
+    FastNoiseLite biomeNoise;
+    biomeNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    biomeNoise.SetFrequency(0.001f); // low = large biomes
 
-    FastNoiseLite ridgeNoise;
-    ridgeNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    ridgeNoise.SetFrequency(0.01f); // Ridge noise for terrain features
+    FastNoiseLite baseNoise;
+    baseNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    baseNoise.SetFrequency(0.01f); // standard terrain noise
 
     FastNoiseLite warp;
     warp.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
@@ -95,26 +115,65 @@ void Chunk::generate() {
             const int worldX = originX + x;
             const int worldZ = originZ + z;
 
-            // Warping: displace coordinates for baseNoise
-            const float wx = worldX + warp.GetNoise(static_cast<float>(worldX), static_cast<float>(worldZ)) * 2.0f;
-            const float wz = worldZ + warp.GetNoise(static_cast<float>(worldZ), static_cast<float>(worldX)) * 2.0f;
+            float xf = static_cast<float>(worldX);
+            float zf = static_cast<float>(worldZ);
 
-            const float base = noise.GetNoise(wx, wz);
-            const float ridges = 1.0f - fabs(ridgeNoise.GetNoise(static_cast<float>(worldX), static_cast<float>(worldZ)));
+            // Domain warp to add terrain folds
+            float wx = xf + warp.GetNoise(xf, zf) * 20.0f;
+            float wz = zf + warp.GetNoise(zf, xf) * 20.0f;
 
-            const float heightF = base * 15.0f + ridges * 10.0f + 60.0f; // + 60.0f = base terrain altitude
-            const int height = static_cast<int>(glm::clamp(heightF, 1.0f, static_cast<float>(HEIGHT) - 1));
+            
+            // Get biome value and normalize to [0,1]
+            float b = biomeNoise.GetNoise(xf, zf) * 0.5f + 0.5f;
 
+            // Determine biome type
+            BiomeType biome;
+            if (b < 0.2f)       biome = BiomeType::DESERT;
+            else if (b < 0.4f)  biome = BiomeType::PLAINS;
+            else if (b < 0.6f)  biome = BiomeType::FOREST;
+            else if (b < 0.8f)  biome = BiomeType::MOUNTAIN;
+            else                biome = BiomeType::SNOW;
+
+            // Terrain height by biome
+            float heightF = 0.0f;
+
+            switch (biome) {
+                case BiomeType::PLAINS:
+                    heightF = baseNoise.GetNoise(wx, wz) * 6.0f + 40.0f;
+                    break;
+                case BiomeType::FOREST:
+                    heightF = baseNoise.GetNoise(wx, wz) * 10.0f + 44.0f;
+                    break;
+                case BiomeType::DESERT:
+                    heightF = baseNoise.GetNoise(wx, wz) * 5.0f + 36.0f;
+                    break;
+                case BiomeType::MOUNTAIN:
+                    heightF = baseNoise.GetNoise(wx * 0.6f, wz * 0.6f) * 28.0f + 60.0f;
+                    break;
+                case BiomeType::SNOW:
+                    heightF = baseNoise.GetNoise(wx * 0.5f, wz * 0.5f) * 18.0f + 70.0f;
+                    break;
+            }
+
+            int height = static_cast<int>(glm::clamp(heightF, 1.0f, (float)HEIGHT - 1));
+
+            // Block layers based on biome
             for (int y = 0; y < HEIGHT; ++y) {
-                // Set blocks based on height
                 if (y < height - 4) {
-                    blocks[x][y][z] = BlockType::STONE; // Stone below the surface
-                } else if (y <= height - 1) {
-                    blocks[x][y][z] = BlockType::DIRT; // Dirt layer
-                } else if (y == height) {
-                    blocks[x][y][z] = BlockType::GRASS; // Grass on top
+                    blocks[x][y][z] = BlockType::STONE;
+                } else if (y < height - 1) {
+                    blocks[x][y][z] = (biome == BiomeType::DESERT) ? BlockType::SAND : BlockType::DIRT;
+                } else if (y < height) {
+                    blocks[x][y][z] = [&] {
+                        switch (biome) {
+                            case BiomeType::DESERT: return BlockType::SAND;
+                            case BiomeType::SNOW:   return BlockType::SNOW;
+                            case BiomeType::MOUNTAIN: return BlockType::STONE;
+                            default: return BlockType::GRASS;
+                        }
+                    }();
                 } else {
-                    blocks[x][y][z] = BlockType::AIR; // Air above the surface
+                    blocks[x][y][z] = BlockType::AIR;
                 }
             }
         }
@@ -264,6 +323,9 @@ void Chunk::addFace(int x, int y, int z, int face) {
     const float faceY = static_cast<float>(y);
     const float faceZ = static_cast<float>(originZ + z);
 
+    const float TILE_W = 1.0f / ATLAS_COLS;
+    const float TILE_H = 1.0f / ATLAS_ROWS;
+
     static const float faceData[6][18] = {
         // FRONT face (Z+)
         { 0,0,1,  1,0,1,  1,1,1,
@@ -303,23 +365,8 @@ void Chunk::addFace(int x, int y, int z, int face) {
     const BlockType type = blocks[x][y][z];
 
     // Determine UV offset in atlas based on block type and face
-    glm::vec2 offset;
-    switch (type) {
-        case BlockType::GRASS:
-            if (face == 2) offset = { 0.0f, 0.0f }; // top = grass-top
-            else if (face == 3) offset = { 2.0f * TILE_SIZE, 0.0f }; // bottom = dirt
-            else offset = { 1.0f * TILE_SIZE, 0.0f }; // side = grass-side
-            break;
-        case BlockType::DIRT:
-            offset = { 2.0f * TILE_SIZE, 0.0f };
-            break;
-        case BlockType::STONE:
-            offset = { 3.0f * TILE_SIZE, 0.0f };
-            break;
-        default:
-            offset = { 0.0f, 0.0f };
-            break;
-    }
+    glm::vec2 tileCoord = getTextureOffset(type, face);
+    glm::vec2 offset = { tileCoord.x * TILE_W, tileCoord.y * TILE_H };
 
 
     for (int i = 0; i < 6; ++i) {
@@ -327,8 +374,11 @@ void Chunk::addFace(int x, int y, int z, int face) {
         float py = faceY + faceData[face][i * 3 + 1];
         float pz = faceZ + faceData[face][i * 3 + 2];
 
-        float u = uvCoords[i * 2 + 0] * TILE_SIZE + offset.x;
-        float v = uvCoords[i * 2 + 1]; // DO NOT scale v — we only have 1 row
+        float baseU = uvCoords[i * 2 + 0]; // 0 → 1
+        float baseV = uvCoords[i * 2 + 1]; // 0 → 1
+
+        float u = baseU * TILE_W + offset.x;
+        float v = baseV * TILE_H + offset.y;
 
 
         meshVertices.push_back(px);
