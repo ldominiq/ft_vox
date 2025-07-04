@@ -55,24 +55,30 @@ void Chunk::setAdjacentChunks(const int direction, Chunk *chunk){
     adjacentChunks[direction] = chunk;
 }
 
-void Chunk::carveWorm(const glm::vec3 startPos, const float radius, const int steps, const FastNoiseLite& noise) {
-    glm::vec3 pos = startPos;
-    glm::vec3 dir = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f)); // initial forward
+void Chunk::carveWorm(Worm &worm) {
+
+    FastNoiseLite noise;
+    noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    noise.SetFrequency(0.1f);
+
+    glm::vec3 pos = worm.pos;
+    float radius = worm.radius;
+    int steps = worm.steps;
+
+    glm::vec3 dir = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f));
 
     for (int i = 0; i < steps; ++i) {
-        // Apply Perlin noise to rotate direction
-        const float angleX = noise.GetNoise(pos.x, pos.y, pos.z) * 0.3f;
-        const float angleY = noise.GetNoise(pos.y, pos.z, pos.x) * 0.3f;
+        float angleX = noise.GetNoise(pos.x, pos.y, pos.z) * 0.5f;
+        float angleY = noise.GetNoise(pos.y, pos.z, pos.x) * 0.5f;
 
         glm::mat4 rot =
             glm::rotate(glm::mat4(1.0f), angleX, glm::vec3(1, 0, 0)) *
             glm::rotate(glm::mat4(1.0f), angleY, glm::vec3(0, 1, 0));
         dir = glm::normalize(glm::vec3(rot * glm::vec4(dir, 0.0f)));
 
-        // Move forward
         pos += dir * 1.0f;
 
-        // Carve a spherical area at pos
+        // Carve sphere — only if inside this chunk
         for (int x = -radius; x <= radius; ++x)
         for (int y = -radius; y <= radius; ++y)
         for (int z = -radius; z <= radius; ++z) {
@@ -109,6 +115,7 @@ void Chunk::generate() {
     wormNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     wormNoise.SetFrequency(0.1f);
 
+    // ========== Base terrain ==========
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
             // World-space position
@@ -194,17 +201,38 @@ void Chunk::generate() {
         }
     }
 
+    // ========== CAVE GENERATION ==========
+    int range = 2; // simulate worms from this many neighboring chunks
+    int worldSeed = 1337;
 
-    for (int i = 0; i < 4; ++i) {
-        const float x = originX + rand() % WIDTH;
-        const float y = 20 + rand() % 30; // underground
-        const float z = originZ + rand() % DEPTH;
-        carveWorm(glm::vec3(x, y, z), 2.0f, 200, wormNoise);
+    for (int dx = -range; dx <= range; ++dx) {
+        for (int dz = -range; dz <= range; ++dz) {
+            int sourceChunkX = originX / WIDTH + dx;
+            int sourceChunkZ = originZ / DEPTH + dz;
+
+            // Seed RNG deterministically for each chunk
+            unsigned int seed = worldSeed ^ (sourceChunkX * 341873128712 + sourceChunkZ * 132897987541);
+            std::mt19937 rng(seed);
+
+            // int numWorms = (rng() % 5); // 0 to 1 worms per chunk
+            int numWorms = (rng() % 10 == 0) ? 1 : 0; //1 out of 5 to generate 1 worm
+
+            for (int i = 0; i < numWorms; ++i) {
+                float localX = (float)(rng() % WIDTH);
+                float localZ = (float)(rng() % DEPTH);
+                float worldX = sourceChunkX * WIDTH + localX;
+                float worldZ = sourceChunkZ * DEPTH + localZ;
+                float worldY = 10 + (rng() % 40); // underground
+
+                Worm worm = Worm(glm::vec3(worldX, worldY, worldZ), 2.0f, 240);
+                // worms.emplace_back(glm::vec3(worldX, worldY, worldZ), 2.0f, 300, &wormNoise);
+
+                carveWorm(worm);
+            }
+        }
     }
-
-    // updateVisibleBlocks();
-    // buildMesh();
 }
+
 
 BlockType Chunk::getBlock(int x, int y, int z) const {
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH) {

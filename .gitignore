@@ -18,5 +18,8 @@ bld/
 # Add this line
 out/
 
+build/
+glad/
+
 # Temporary files
 *.o
