@@ -12,7 +12,7 @@
 #include <ostream>
 #include "Block.hpp"
 #include "Shader.hpp"
-#include "fastnoise/FastNoiseLite.h"
+#include "FastNoiseLite.h"
 
 #include <random>
 

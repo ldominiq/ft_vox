@@ -1,26 +1,76 @@
-cmake_minimum_required(VERSION 3.24)
-project(ft_vox)
+cmake_minimum_required(VERSION 3.22)
+project(ft_vox LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 17)
+include(FetchContent)
 
-# Include directories
-include_directories(${CMAKE_SOURCE_DIR}/Libraries/include)
+# Glad
+add_library(glad glad/src/glad.c)
+target_include_directories(glad PUBLIC glad/include)
 
-link_directories(${CMAKE_SOURCE_DIR}/Libraries/lib)
+# GLFW
+FetchContent_Declare(
+  glfw
+  GIT_REPOSITORY https://github.com/glfw/glfw.git
+  GIT_TAG latest
+)
+FetchContent_MakeAvailable(glfw)
 
-# Add the executable and its source files
-add_executable(ft_vox src/main.cpp external/glad/glad.cpp external/stb_image/stb_image.cpp)
+# GLM
+FetchContent_Declare(
+  glm
+  GIT_REPOSITORY https://github.com/g-truc/glm.git
+  GIT_TAG master
+)
+FetchContent_MakeAvailable(glm)
 
-# Link the GLAD and GLFW libraries
-#target_link_libraries(ft_vox glfw3 glad)
+# FastNoise
+FetchContent_Declare(
+  fastnoise
+  GIT_REPOSITORY https://github.com/Auburn/FastNoiseLite.git
+  GIT_TAG master
+)
+FetchContent_MakeAvailable(fastnoise)
 
-# Find and link the OpenGL library
-#find_package(glfw3 3.4 REQUIRED)
+# stb_image
+FetchContent_Declare(
+  stb
+  GIT_REPOSITORY https://github.com/nothings/stb.git
+  GIT_TAG master
+)
+FetchContent_MakeAvailable(stb)
+
+file(GLOB SRC "src/*.cpp")
+
+if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
+  file(COPY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR})
+endif()
+
+if(EXISTS ${CMAKE_SOURCE_DIR}/shaders)
+  file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})
+endif()
+
+add_executable(${PROJECT_NAME} ${SRC})
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+  include
+  ${glm_SOURCE_DIR}
+  ${fastnoise_SOURCE_DIR}/Cpp
+  glad/include
+  ${stb_SOURCE_DIR}
+)
 
 find_package(OpenGL REQUIRED)
-target_link_libraries(ft_vox PUBLIC glfw3 assimp OpenGL::GL ${CMAKE_DL_LIBS})
 
-# Copy a directory from the main directory to the build directory
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders ${CMAKE_CURRENT_SOURCE_DIR}/Models ${CMAKE_CURRENT_SOURCE_DIR}/Textures ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/assimp-vc143-mt.dll
-        DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Debug)
-
+target_link_libraries(${PROJECT_NAME} PRIVATE
+  glfw
+  glad
+  OpenGL::GL
+  dl
+  pthread
+  X11
+  Xi
+  Xrandr
+  Xxf86vm
+  z
+)

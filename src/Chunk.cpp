@@ -153,7 +153,7 @@ void Chunk::generate() {
                 float worldZ = sourceChunkZ * DEPTH + localZ;
                 float worldY = 10 + (rng() % 40); // underground
 
-                Worm worm = Worm(glm::vec3(worldX, worldY, worldZ), 2.0f, 160);
+                Worm worm = Worm(glm::vec3(worldX, worldY, worldZ), 2.0f, 240);
                 // worms.emplace_back(glm::vec3(worldX, worldY, worldZ), 2.0f, 300, &wormNoise);
 
                 carveWorm(worm);

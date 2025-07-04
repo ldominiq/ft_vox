@@ -1,6 +1,5 @@
 #include "Shader.hpp"
 
-
 Shader::Shader(const char* vertexPath, const char* fragmentPath) {
     std::ifstream vFile(vertexPath), fFile(fragmentPath);
     std::stringstream vStream, fStream;

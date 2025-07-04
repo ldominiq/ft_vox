@@ -1,6 +1,6 @@
 NAME        := ft_vox
 CC          := g++
-FLAGS       := -DLINUX -std=c++11 -Wall -Wextra -Werror
+FLAGS       := -DLINUX -std=c++17 -Wall -Wextra -Werror
 
 # Include paths
 INCLUDES    := -I include -I external
