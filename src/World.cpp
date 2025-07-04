@@ -66,6 +66,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
 
     for (int x = -radius; x <= radius; ++x) {
         for (int z = -radius; z <= radius; ++z) {
+            if (x * x + z * z > radius * radius) continue; // Skip if outside the radius
             Chunk *chunk = getOrCreateChunk(currentChunkX + x, currentChunkZ + z);
 
             if (!chunk)

@@ -215,7 +215,7 @@ void Chunk::generate() {
             std::mt19937 rng(seed);
 
             // int numWorms = (rng() % 5); // 0 to 1 worms per chunk
-            int numWorms = (rng() % 10 == 0) ? 1 : 0; //1 out of 5 to generate 1 worm
+            int numWorms = (rng() % 100 == 0) ? 1 : 0; //1 out of 5 to generate 1 worm
 
             for (int i = 0; i < numWorms; ++i) {
                 float localX = (float)(rng() % WIDTH);
