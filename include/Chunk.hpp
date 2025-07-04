@@ -34,11 +34,19 @@ enum Direction {
 	WEST
 };
 
+enum class BiomeType {
+    PLAINS,
+    DESERT,
+    FOREST,
+    MOUNTAIN,
+    SNOW
+};
+
 class Chunk {
 public:
-    static const int WIDTH = 16; // Size of the chunck in blocks
-    static const int HEIGHT = 256; // Height of the chunck in blocks
-    static const int DEPTH = 16; // Depth of the chunck in blocks
+    static constexpr int WIDTH = 16; // Size of the chunck in blocks
+    static constexpr int HEIGHT = 256; // Height of the chunck in blocks
+    static constexpr int DEPTH = 16; // Depth of the chunck in blocks
 
     Chunk(int chunkX, int chunkZ);
     
@@ -51,7 +59,7 @@ public:
 
 	void updateVisibleBlocks();
     void buildMesh(); // Build the mesh for rendering
-    void draw(Shader* shaderProgram) const; // Draw the chunk using the given shader program
+    void draw(const Shader* shaderProgram) const; // Draw the chunk using the given shader program
 
 	void setAdjacentChunks(int direction, Chunk *chunk);
 

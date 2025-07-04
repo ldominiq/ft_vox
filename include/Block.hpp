@@ -7,12 +7,15 @@ enum class BlockType {
     AIR,
     GRASS,
     DIRT,
-    STONE
+    STONE,
+    SAND,
+    SNOW
+
 };
 
 class Block {
 public:
-    Block(BlockType type = BlockType::AIR);
+    explicit Block(BlockType type = BlockType::AIR);
     BlockType getType() const;
     bool isVisible() const;
 private:

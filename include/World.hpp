@@ -15,8 +15,8 @@ using ChunkPos = std::pair<int, int>; // (chunkX, chunkZ)
 
 template <>
 struct std::hash<ChunkPos> {
-    std::size_t operator()(const ChunkPos& p) const {
-        return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
+    std::size_t operator()(const ChunkPos& p) const noexcept {
+        return std::hash<int>()(p.first) ^ std::hash<int>()(p.second) << 1;
     }
 };
 
@@ -27,7 +27,7 @@ public:
     ~World();
 
     void updateVisibleChunks(const glm::vec3& cameraPos);
-    void render(Shader* shaderProgram);
+    void render(const Shader* shaderProgram) const;
 
     Chunk* getChunk(int chunkX, int chunkZ);
 
