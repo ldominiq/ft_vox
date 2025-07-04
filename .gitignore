@@ -18,10 +18,8 @@ bld/
 # Add this line
 out/
 
-<<<<<<< HEAD
 build/
 glad/
-=======
+
 # Temporary files
 *.o
->>>>>>> master

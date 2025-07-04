@@ -24,23 +24,6 @@ Chunk* World::getChunk(const int chunkX, const int chunkZ) {
     return chunks[key];
 }
 
-
-// std::vector<std::future<std::pair<ChunkKey, Chunk*>>> futures;
-
-// for (auto [chunkX, chunkZ] : chunksToGenerate) {
-//     ChunkKey key = toKey(chunkX, chunkZ);
-//     futures.push_back(std::async(std::launch::async, [=]() {
-//         Chunk* chunk = new Chunk(chunkX, chunkZ);
-//         return std::make_pair(key, chunk);
-//     }));
-// }
-
-// // Wait for all to finish and insert into map
-// for (auto& future : futures) {
-//     auto [key, chunk] = future.get();
-//     chunks[key] = chunk;
-// }
-
 void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
     
     const int dirX[] = { 0, 0, 1, -1 };
@@ -70,14 +53,7 @@ Chunk* World::getOrCreateChunk(int chunkX, int chunkZ) {
     if (chunks.count(key) > 0)
         return chunks[key];
 
-    return NULL;
-
-    Chunk* chunk = new Chunk(chunkX, chunkZ);
-    chunks[key] = chunk;
-
-    linkNeighbors(chunkX, chunkZ, chunk);
-
-    return chunk;
+    return nullptr;
 }
 
 void World::updateVisibleChunks(const glm::vec3& cameraPos) {
