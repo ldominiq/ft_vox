@@ -1,5 +1,5 @@
 #include "Chunk.hpp"
-
+#include "World.hpp"
 
 const int ATLAS_COLS = 6;
 const int ATLAS_ROWS = 1;
@@ -44,6 +44,7 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
 
 
 Chunk::Chunk(const int chunkX, const int chunkZ) : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH){
+	visibleBlocksSet.reserve(WIDTH * DEPTH * HEIGHT);
     generate();
 }
 
@@ -241,15 +242,24 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
     return blocks[x][y][z];
 }
 
-void Chunk::setBlock(int x, int y, int z, BlockType type) {
+void Chunk::setBlock(World *world, int x, int y, int z, BlockType type) {
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH) {
         return; // Out of bounds, do nothing
     }
     blocks[x][y][z] = type;
+
+	updateChunk();
+
+	//update possible neighbour
+	if (x == 0)	world->updateChunk(originX - 1, originZ);
+	if (x == WIDTH - 1) world->updateChunk(originX + 1, originZ);
+	if (z == 0) world->updateChunk(originX, originZ - 1);
+	if (z == DEPTH - 1) world->updateChunk(originX, originZ + 1);
 }
 
 void Chunk::updateVisibleBlocks() {
     visibleBlocks.clear();
+	visibleBlocksSet.clear();
 
     for (int x = 0; x < WIDTH; ++x) {
         for (int y = 0; y < HEIGHT; ++y) {
@@ -306,14 +316,19 @@ void Chunk::updateVisibleBlocks() {
 
                 if (exposed) {
                     visibleBlocks.emplace_back(x, y, z);
+					visibleBlocksSet.insert(glm::ivec3(x, y, z));
                 }
             }
         }
     }
 }
 
+bool Chunk::isBlockVisible(glm::vec3 blockPos)
+{
+	return visibleBlocksSet.count(blockPos) > 0;
+}
 
-const std::vector<glm::vec3>& Chunk::getVisibleBlocks() const {
+const std::vector<glm::ivec3>& Chunk::getVisibleBlocks() const {
     return visibleBlocks;
 }
 
@@ -358,6 +373,8 @@ void Chunk::buildMesh() {
     // layout(location = 2) = float vertexY
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void *>(5 * sizeof(float)));
     glEnableVertexAttribArray(2);
+
+	std::cout << meshVertices.size() << std::endl;
 
 }
 
@@ -433,6 +450,12 @@ void Chunk::addFace(int x, int y, int z, int face) {
     }
 
 
+}
+
+void Chunk::updateChunk()
+{
+	updateVisibleBlocks();
+	buildMesh();
 }
 
 void Chunk::draw(const Shader* shaderProgram) const {

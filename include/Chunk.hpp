@@ -15,7 +15,17 @@
 #include "FastNoiseLite.h"
 
 #include <random>
+#include <unordered_set>
 
+class World;
+
+struct IVec3Hash {
+    size_t operator()(const glm::ivec3& v) const {
+        return std::hash<int>()(v.x) ^ std::hash<int>()(v.y << 1) ^ std::hash<int>()(v.z << 2);
+    }
+};
+
+// TODO : REVAMP CAVES. Idea : map the whole world to some 3D noise map. Maybe possible and efficient?
 struct Worm {
     glm::vec3 pos;
 	float radius = 2.0f;
@@ -53,29 +63,35 @@ public:
     void carveWorm(Worm &worm);
     void generate();
     BlockType getBlock(int x, int y, int z) const;
-    void setBlock(int x, int y, int z, BlockType type);
+    void setBlock(World *world, int x, int y, int z, BlockType type);
 
-    const std::vector<glm::vec3>& getVisibleBlocks() const;
+    const std::vector<glm::ivec3>& getVisibleBlocks() const;
 
-	void updateVisibleBlocks();
-    void buildMesh(); // Build the mesh for rendering
+	bool isBlockVisible(glm::vec3 blockPos);
+
     void draw(const Shader* shaderProgram) const; // Draw the chunk using the given shader program
 
 	void setAdjacentChunks(int direction, Chunk *chunk);
-
 	bool hasAllAdjacentChunkLoaded() const;
+
+	void updateChunk(); //updateVisibleBlocks + buildMesh. Used when updating blocks in a chunk
 
 private:
 	Chunk *adjacentChunks[4] = {};
 
     BlockType blocks[WIDTH][HEIGHT][DEPTH]; // 3D array of blocks
-    std::vector<glm::vec3> visibleBlocks; // List of visible blocks for rendering
+    std::vector<glm::ivec3> visibleBlocks; // List of visible blocks for rendering
+	std::unordered_set<glm::ivec3, IVec3Hash> visibleBlocksSet; //copy of visibly blocks for 0(1) Lookup
+	
     int originX; // X coordinate of the chunck origin
     int originZ; // Z coordinate of the chunck origin
     GLuint VAO = 0, VBO = 0;
     std::vector<float> meshVertices; // Vertices for the mesh
 
     void addFace(int x, int y, int z, int face); // Add a face to the mesh vertices
+
+	void updateVisibleBlocks();
+	void buildMesh(); // Build the mesh for rendering
 };
 
 #endif

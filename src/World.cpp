@@ -3,7 +3,7 @@
 //
 
 #include "World.hpp"
-#include <utility>
+// #include <utility>
 
 World::World() {
 }
@@ -24,6 +24,81 @@ Chunk* World::getChunk(const int chunkX, const int chunkZ) {
     return chunks[key];
 }
 
+void World::updateChunk(int chunkX, int chunkZ)
+{
+	Chunk *chunk = getChunk(chunkX, chunkZ);
+	if (chunk)
+		chunk->updateChunk();
+}
+
+BlockType World::getBlockWorld(glm::ivec3 globalCoords)
+{
+	int x = (globalCoords.x % Chunk::WIDTH + Chunk::WIDTH) % Chunk::WIDTH;
+	int z = (globalCoords.y % Chunk::DEPTH + Chunk::DEPTH) % Chunk::DEPTH;
+	int y = globalCoords.y;
+
+	int chunkX = globalCoords.x / Chunk::WIDTH;
+	if (globalCoords.x < 0 && globalCoords.x % Chunk::WIDTH != 0)
+		chunkX--;
+
+	int chunkZ = globalCoords.z / Chunk::DEPTH;
+	if (globalCoords.z < 0 && globalCoords.z % Chunk::DEPTH != 0)
+		chunkZ--;
+
+
+	auto it = chunks.find(std::make_pair(chunkX, chunkZ));
+	if (it == chunks.end()) {
+		return BlockType::AIR;
+	}
+	Chunk* currChunk = it->second;
+	return currChunk->getBlock(x, y, z);
+}
+
+void World::setBlockWorld(glm::ivec3 globalCoords, BlockType type)
+{
+	int x = (globalCoords.x % Chunk::WIDTH + Chunk::WIDTH) % Chunk::WIDTH;
+	int z = (globalCoords.z % Chunk::DEPTH + Chunk::DEPTH) % Chunk::DEPTH;
+	int y = globalCoords.y;
+
+	int chunkX = globalCoords.x / Chunk::WIDTH;
+	if (globalCoords.x < 0 && globalCoords.x % Chunk::WIDTH != 0)
+		chunkX--;
+
+	int chunkZ = globalCoords.z / Chunk::DEPTH;
+	if (globalCoords.z < 0 && globalCoords.z % Chunk::DEPTH != 0)
+		chunkZ--;
+
+
+	auto it = chunks.find(std::make_pair(chunkX, chunkZ));
+	if (it == chunks.end())
+		return ;
+
+	Chunk* currChunk = it->second;
+	return currChunk->setBlock(this, x, y, z, type);
+}
+
+bool World::isBlockVisibleWorld(glm::ivec3 globalCoords)
+{
+	int x = (globalCoords.x % Chunk::WIDTH + Chunk::WIDTH) % Chunk::WIDTH;
+	int z = (globalCoords.z % Chunk::DEPTH + Chunk::DEPTH) % Chunk::DEPTH;
+	int y = globalCoords.y;
+
+	int chunkX = globalCoords.x / Chunk::WIDTH;
+	if (globalCoords.x < 0 && globalCoords.x % Chunk::WIDTH != 0)
+		chunkX--;
+
+	int chunkZ = globalCoords.z / Chunk::DEPTH;
+	if (globalCoords.z < 0 && globalCoords.z % Chunk::DEPTH != 0)
+		chunkZ--;
+
+	auto it = chunks.find(std::make_pair(chunkX, chunkZ));
+	if (it == chunks.end()) {
+		return false;
+	}
+	Chunk* currChunk = it->second;
+	return currChunk->isBlockVisible(glm::vec3(x, y ,z));
+}
+
 void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
     
     const int dirX[] = { 0, 0, 1, -1 };
@@ -41,8 +116,7 @@ void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
             neighbor->setAdjacentChunks(opp[dir], chunk);
 
             if (neighbor->hasAllAdjacentChunkLoaded()) {
-                neighbor->updateVisibleBlocks();
-                neighbor->buildMesh();
+				neighbor->updateChunk();
             }
         }
     }

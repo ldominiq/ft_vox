@@ -27,9 +27,13 @@ public:
     ~World();
 
     void updateVisibleChunks(const glm::vec3& cameraPos);
+	void updateChunk(int ChunkX, int chunkY);
     void render(const Shader* shaderProgram) const;
 
     Chunk* getChunk(int chunkX, int chunkZ);
+	BlockType getBlockWorld(glm::ivec3 globalCoords); //unused for now
+	void setBlockWorld(glm::ivec3 globalCoords, BlockType type);
+	bool isBlockVisibleWorld(glm::ivec3 globalCoords);
 
 private:
     using ChunkKey = std::pair<int, int>; // (chunkX, chunkZ)
@@ -39,6 +43,7 @@ private:
 
     void linkNeighbors(int chunkX, int chunkZ, Chunk* chunk);
     Chunk* getOrCreateChunk(int chunkX, int chunkZ);
+
     static ChunkKey toKey(int chunkX, int chunkZ);
 };
 

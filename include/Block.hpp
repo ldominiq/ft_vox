@@ -1,8 +1,6 @@
 #ifndef BLOCK_HPP
 #define BLOCK_HPP
 
-#include <glm/glm.hpp>
-
 enum class BlockType {
     AIR,
     GRASS,
