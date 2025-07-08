@@ -15,14 +15,18 @@ glm::mat4 Camera::getViewMatrix() const {
 
 void Camera::processKeyboard(const int direction, const float deltaTime) {
     const float velocity = MovementSpeed * deltaTime;
+
+    // Minecraft'ish camera. Doens't move along the Y axis
+    glm::vec3 horizontalFront = glm::normalize(glm::vec3(Front.x, 0.0f, Front.z));
+
     if (direction == FORWARD)
-        Position += Front * velocity;
+        Position += horizontalFront * velocity; //Front * velocity;
     if (direction == BACKWARD)
-        Position -= Front * velocity;
+        Position -= horizontalFront * velocity; //Front * velocity;
     if (direction == LEFT)
-        Position -= Right * velocity;
+        Position -= glm::normalize(glm::cross(horizontalFront, WorldUp)) * velocity; //Right * velocity;
     if (direction == RIGHT)
-        Position += Right * velocity;
+        Position += glm::normalize(glm::cross(horizontalFront, WorldUp)) * velocity; //Right * velocity;
 }
 
 void Camera::processMouseMovement(float xoffset, float yoffset) {
@@ -89,8 +93,6 @@ bool Camera::getTargetedBlock(World *world, glm::ivec3& hitBlock, glm::ivec3& fa
         faceNormal[axis] = -step[axis];
 
 		distanceTraveled = glm::min(glm::min(sideDist.x, sideDist.y), sideDist.z);
-
-        // distanceTraveled = glm::length(glm::vec3(blockPos) + 0.5f - rayOrigin);
 
         // Check if this block exists in your world
         if (world && world->isBlockVisibleWorld(blockPos)) {

@@ -251,10 +251,10 @@ void Chunk::setBlock(World *world, int x, int y, int z, BlockType type) {
 	updateChunk();
 
 	//update possible neighbour
-	if (x == 0)	world->updateChunk(originX - 1, originZ);
-	if (x == WIDTH - 1) world->updateChunk(originX + 1, originZ);
-	if (z == 0) world->updateChunk(originX, originZ - 1);
-	if (z == DEPTH - 1) world->updateChunk(originX, originZ + 1);
+	if (x == 0 && adjacentChunks[WEST])	adjacentChunks[WEST]->updateChunk();
+	if (x == WIDTH - 1 && adjacentChunks[EAST]) adjacentChunks[EAST]->updateChunk();
+	if (z == 0 && adjacentChunks[SOUTH]) adjacentChunks[SOUTH]->updateChunk();
+	if (z == DEPTH - 1 && adjacentChunks[NORTH]) adjacentChunks[NORTH]->updateChunk();
 }
 
 void Chunk::updateVisibleBlocks() {
@@ -286,14 +286,14 @@ void Chunk::updateVisibleBlocks() {
 
                 // -Y direction (bottom)
                 if (y == 0) {
-                    exposed = false;
+                    exposed = true;
                 } else {
                     exposed |= blocks[x][y - 1][z] == BlockType::AIR;
                 }
 
                 // +Y direction (top)
                 if (y == HEIGHT - 1) {
-                    exposed = false;
+                    exposed = true;
                 } else {
                     exposed |= blocks[x][y + 1][z] == BlockType::AIR;
                 }
@@ -335,22 +335,54 @@ const std::vector<glm::ivec3>& Chunk::getVisibleBlocks() const {
 void Chunk::buildMesh() {
     meshVertices.clear();
 
-    for (auto block : visibleBlocks)
-    {
-        int x = block.x;
-        int y = block.y;
-        int z = block.z;
+	for (auto block : visibleBlocks) {
+		int x = block.x;
+		int y = block.y;
+		int z = block.z;
 
-        if (blocks[x][y][z] == BlockType::AIR) continue;
-        // Check each face of the block
+		if (blocks[x][y][z] == BlockType::AIR) continue;
 
-        if (z == DEPTH - 1 || blocks[x][y][z + 1] == BlockType::AIR) addFace(x, y, z, 0); // Front face (Z+)
-        if (z == 0 || blocks[x][y][z - 1] == BlockType::AIR) addFace(x, y, z, 1); // Back face (Z-)
-        if (y == HEIGHT - 1 || blocks[x][y + 1][z] == BlockType::AIR) addFace(x, y, z, 2); // Top face (Y+)
-        if (y == 0 || blocks[x][y - 1][z] == BlockType::AIR) addFace(x, y, z, 3); // Bottom face (Y-)
-        if (x == WIDTH - 1 || blocks[x + 1][y][z] == BlockType::AIR) addFace(x, y, z, 4); // Right face (X+)
-        if (x == 0 || blocks[x - 1][y][z] == BlockType::AIR) addFace(x, y, z, 5); // Left face (X-)
-    }
+		// FRONT (+Z)
+		if (z == DEPTH - 1) {
+			if (!adjacentChunks[NORTH] || adjacentChunks[NORTH]->getBlock(x, y, 0) == BlockType::AIR)
+				addFace(x, y, z, 0);
+		} else if (blocks[x][y][z + 1] == BlockType::AIR) {
+			addFace(x, y, z, 0);
+		}
+
+		// BACK (-Z)
+		if (z == 0) {
+			if (!adjacentChunks[SOUTH] || adjacentChunks[SOUTH]->getBlock(x, y, DEPTH - 1) == BlockType::AIR)
+				addFace(x, y, z, 1);
+		} else if (blocks[x][y][z - 1] == BlockType::AIR) {
+			addFace(x, y, z, 1);
+		}
+
+		// TOP (+Y) – no chunk above, so no neighbor
+		if (y == HEIGHT - 1 || blocks[x][y + 1][z] == BlockType::AIR)
+			addFace(x, y, z, 2);
+
+		// BOTTOM (-Y) – no chunk below, so no neighbor
+		if (y == 0 || blocks[x][y - 1][z] == BlockType::AIR)
+			addFace(x, y, z, 3);
+
+		// RIGHT (+X)
+		if (x == WIDTH - 1) {
+			if (!adjacentChunks[EAST] || adjacentChunks[EAST]->getBlock(0, y, z) == BlockType::AIR)
+				addFace(x, y, z, 4);
+		} else if (blocks[x + 1][y][z] == BlockType::AIR) {
+			addFace(x, y, z, 4);
+		}
+
+		// LEFT (-X)
+		if (x == 0) {
+			if (!adjacentChunks[WEST] || adjacentChunks[WEST]->getBlock(WIDTH - 1, y, z) == BlockType::AIR)
+				addFace(x, y, z, 5);
+		} else if (blocks[x - 1][y][z] == BlockType::AIR) {
+			addFace(x, y, z, 5);
+		}
+	}
+
 
     // Upload mesh data to OpenGL
     if (VAO == 0)
@@ -373,9 +405,6 @@ void Chunk::buildMesh() {
     // layout(location = 2) = float vertexY
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void *>(5 * sizeof(float)));
     glEnableVertexAttribArray(2);
-
-	std::cout << meshVertices.size() << std::endl;
-
 }
 
 void Chunk::addFace(int x, int y, int z, int face) {

@@ -24,13 +24,6 @@ Chunk* World::getChunk(const int chunkX, const int chunkZ) {
     return chunks[key];
 }
 
-void World::updateChunk(int chunkX, int chunkZ)
-{
-	Chunk *chunk = getChunk(chunkX, chunkZ);
-	if (chunk)
-		chunk->updateChunk();
-}
-
 BlockType World::getBlockWorld(glm::ivec3 globalCoords)
 {
 	int x = (globalCoords.x % Chunk::WIDTH + Chunk::WIDTH) % Chunk::WIDTH;
@@ -140,6 +133,9 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
 
     for (int x = -radius; x <= radius; ++x) {
         for (int z = -radius; z <= radius; ++z) {
+			if (x * x + z * z > radius * radius)
+            	continue; // Skip chunks outside circular radius
+
             Chunk *chunk = getOrCreateChunk(currentChunkX + x, currentChunkZ + z);
 
             if (!chunk)

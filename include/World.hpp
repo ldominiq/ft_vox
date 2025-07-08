@@ -27,7 +27,6 @@ public:
     ~World();
 
     void updateVisibleChunks(const glm::vec3& cameraPos);
-	void updateChunk(int ChunkX, int chunkY);
     void render(const Shader* shaderProgram) const;
 
     Chunk* getChunk(int chunkX, int chunkZ);
