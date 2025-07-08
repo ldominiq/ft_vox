@@ -6,15 +6,6 @@
 
 #include "World.hpp"
 
-// #include "App.hpp"
-
-// enum class Camera_Movement {
-//     FORWARD,
-//     BACKWARD,
-//     LEFT,
-//     RIGHT
-// };
-
 class Camera {
 
 	GLuint wireframeVAO, wireframeVBO, wireframeEBO;

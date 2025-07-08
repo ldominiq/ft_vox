@@ -20,13 +20,13 @@ void Camera::processKeyboard(const int direction, const float deltaTime) {
     glm::vec3 horizontalFront = glm::normalize(glm::vec3(Front.x, 0.0f, Front.z));
 
     if (direction == FORWARD)
-        Position += horizontalFront * velocity; //Front * velocity;
+        Position += horizontalFront * velocity;
     if (direction == BACKWARD)
-        Position -= horizontalFront * velocity; //Front * velocity;
+        Position -= horizontalFront * velocity;
     if (direction == LEFT)
-        Position -= glm::normalize(glm::cross(horizontalFront, WorldUp)) * velocity; //Right * velocity;
+        Position -= glm::normalize(glm::cross(horizontalFront, WorldUp)) * velocity;
     if (direction == RIGHT)
-        Position += glm::normalize(glm::cross(horizontalFront, WorldUp)) * velocity; //Right * velocity;
+        Position += glm::normalize(glm::cross(horizontalFront, WorldUp)) * velocity;
 }
 
 void Camera::processMouseMovement(float xoffset, float yoffset) {
@@ -163,7 +163,6 @@ void Camera::drawWireframeSelectedBlockFace(World *world, glm::mat4 view, glm::m
 	blockWireframeShader->setMat4("model", model);
 	blockWireframeShader->setMat4("view", view);
 	blockWireframeShader->setMat4("projection", projection);
-	blockWireframeShader->setVec3("color", glm::vec3(1.0f, 0.0f, 1.0f));
 
     glBindVertexArray(wireframeVAO);
     glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, nullptr);

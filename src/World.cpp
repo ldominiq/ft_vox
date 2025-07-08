@@ -133,7 +133,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
 
     for (int x = -radius; x <= radius; ++x) {
         for (int z = -radius; z <= radius; ++z) {
-			if (x * x + z * z > radius * radius)
+			if (x * x + z * z >= radius * radius)
             	continue; // Skip chunks outside circular radius
 
             Chunk *chunk = getOrCreateChunk(currentChunkX + x, currentChunkZ + z);
@@ -176,5 +176,4 @@ void World::render(const Shader* shaderProgram) const {
         count++;
         pair->draw(shaderProgram);
     }
-    // std::cout << "Chunks rendered: " << count << std::endl;
 }
