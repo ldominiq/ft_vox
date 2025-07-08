@@ -24,20 +24,26 @@ Chunk* World::getChunk(const int chunkX, const int chunkZ) {
     return chunks[key];
 }
 
-BlockType World::getBlockWorld(glm::ivec3 globalCoords)
+void World::globalCoordsToLocalCoords(int &x, int &y, int &z, int globalX, int globalY, int globalZ, int &chunkX, int &chunkZ)
 {
-	int x = (globalCoords.x % Chunk::WIDTH + Chunk::WIDTH) % Chunk::WIDTH;
-	int z = (globalCoords.y % Chunk::DEPTH + Chunk::DEPTH) % Chunk::DEPTH;
-	int y = globalCoords.y;
+	x = (globalX % Chunk::WIDTH + Chunk::WIDTH) % Chunk::WIDTH;
+	z = (globalZ % Chunk::DEPTH + Chunk::DEPTH) % Chunk::DEPTH;
+	y = globalY;
 
-	int chunkX = globalCoords.x / Chunk::WIDTH;
-	if (globalCoords.x < 0 && globalCoords.x % Chunk::WIDTH != 0)
+	chunkX = globalX / Chunk::WIDTH;
+	if (globalX < 0 && globalX % Chunk::WIDTH != 0)
 		chunkX--;
 
-	int chunkZ = globalCoords.z / Chunk::DEPTH;
-	if (globalCoords.z < 0 && globalCoords.z % Chunk::DEPTH != 0)
+	chunkZ = globalZ / Chunk::DEPTH;
+	if (globalZ < 0 && globalZ % Chunk::DEPTH != 0)
 		chunkZ--;
+}
 
+BlockType World::getBlockWorld(glm::ivec3 globalCoords)
+{
+	int x, y, z;
+	int chunkX, chunkZ;
+	globalCoordsToLocalCoords(x, y, z, globalCoords.x, globalCoords.y, globalCoords.z, chunkX, chunkZ);
 
 	auto it = chunks.find(std::make_pair(chunkX, chunkZ));
 	if (it == chunks.end()) {
@@ -49,18 +55,9 @@ BlockType World::getBlockWorld(glm::ivec3 globalCoords)
 
 void World::setBlockWorld(glm::ivec3 globalCoords, BlockType type)
 {
-	int x = (globalCoords.x % Chunk::WIDTH + Chunk::WIDTH) % Chunk::WIDTH;
-	int z = (globalCoords.z % Chunk::DEPTH + Chunk::DEPTH) % Chunk::DEPTH;
-	int y = globalCoords.y;
-
-	int chunkX = globalCoords.x / Chunk::WIDTH;
-	if (globalCoords.x < 0 && globalCoords.x % Chunk::WIDTH != 0)
-		chunkX--;
-
-	int chunkZ = globalCoords.z / Chunk::DEPTH;
-	if (globalCoords.z < 0 && globalCoords.z % Chunk::DEPTH != 0)
-		chunkZ--;
-
+	int x, y, z;
+	int chunkX, chunkZ;
+	globalCoordsToLocalCoords(x, y, z, globalCoords.x, globalCoords.y, globalCoords.z, chunkX, chunkZ);
 
 	auto it = chunks.find(std::make_pair(chunkX, chunkZ));
 	if (it == chunks.end())
@@ -72,17 +69,9 @@ void World::setBlockWorld(glm::ivec3 globalCoords, BlockType type)
 
 bool World::isBlockVisibleWorld(glm::ivec3 globalCoords)
 {
-	int x = (globalCoords.x % Chunk::WIDTH + Chunk::WIDTH) % Chunk::WIDTH;
-	int z = (globalCoords.z % Chunk::DEPTH + Chunk::DEPTH) % Chunk::DEPTH;
-	int y = globalCoords.y;
-
-	int chunkX = globalCoords.x / Chunk::WIDTH;
-	if (globalCoords.x < 0 && globalCoords.x % Chunk::WIDTH != 0)
-		chunkX--;
-
-	int chunkZ = globalCoords.z / Chunk::DEPTH;
-	if (globalCoords.z < 0 && globalCoords.z % Chunk::DEPTH != 0)
-		chunkZ--;
+	int x, y, z;
+	int chunkX, chunkZ;
+	globalCoordsToLocalCoords(x, y, z, globalCoords.x, globalCoords.y, globalCoords.z, chunkX, chunkZ);
 
 	auto it = chunks.find(std::make_pair(chunkX, chunkZ));
 	if (it == chunks.end()) {
@@ -115,14 +104,6 @@ void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
     }
 }
 
-Chunk* World::getOrCreateChunk(int chunkX, int chunkZ) {
-    ChunkKey key = toKey(chunkX, chunkZ);
-    if (chunks.count(key) > 0)
-        return chunks[key];
-
-    return nullptr;
-}
-
 void World::updateVisibleChunks(const glm::vec3& cameraPos) {
     chunksToGenerate.clear();
     renderedChunks.clear();
@@ -136,7 +117,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
 			if (x * x + z * z >= radius * radius)
             	continue; // Skip chunks outside circular radius
 
-            Chunk *chunk = getOrCreateChunk(currentChunkX + x, currentChunkZ + z);
+            Chunk *chunk = getChunk(currentChunkX + x, currentChunkZ + z);
 
             if (!chunk)
                 chunksToGenerate.emplace_back(std::make_pair(currentChunkX + x, currentChunkZ + z));
@@ -151,7 +132,6 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
         ChunkKey key = toKey(chunkX, chunkZ);
 
         futures.push_back(std::async(std::launch::async, [=]() {
-            // Make sure this does not access shared state!
             Chunk* chunk = new Chunk(chunkX, chunkZ);
             return std::make_pair(key, chunk);
         }));
@@ -160,14 +140,13 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
     // Wait for all threads to finish, insert into the map (single-threaded section)
     for (auto& future : futures) {
         auto [key, chunk] = future.get();
-        chunks[key] = chunk;  // Safe: chunks modified in main thread only
+        chunks[key] = chunk;
     }
 
     // Now safely link neighbors
     for (auto [chunkX, chunkZ] : chunksToGenerate) {
         linkNeighbors(chunkX, chunkZ, getChunk(chunkX, chunkZ));
     }
-
 }
 
 void World::render(const Shader* shaderProgram) const {

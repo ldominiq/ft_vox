@@ -62,12 +62,13 @@ public:
     
     void carveWorm(Worm &worm);
     void generate();
+
     BlockType getBlock(int x, int y, int z) const;
     void setBlock(World *world, int x, int y, int z, BlockType type);
 
     const std::vector<glm::ivec3>& getVisibleBlocks() const;
 
-	bool isBlockVisible(glm::vec3 blockPos);
+	bool isBlockVisible(glm::ivec3 blockPos);
 
     void draw(const Shader* shaderProgram) const; // Draw the chunk using the given shader program
 

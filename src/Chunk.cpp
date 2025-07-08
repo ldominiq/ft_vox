@@ -323,7 +323,7 @@ void Chunk::updateVisibleBlocks() {
     }
 }
 
-bool Chunk::isBlockVisible(glm::vec3 blockPos)
+bool Chunk::isBlockVisible(glm::ivec3 blockPos)
 {
 	return visibleBlocksSet.count(blockPos) > 0;
 }
