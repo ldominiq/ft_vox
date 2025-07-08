@@ -3,7 +3,7 @@
 //
 
 #include "World.hpp"
-#include <utility>
+// #include <utility>
 
 World::World() {
 }
@@ -24,6 +24,63 @@ Chunk* World::getChunk(const int chunkX, const int chunkZ) {
     return chunks[key];
 }
 
+void World::globalCoordsToLocalCoords(int &x, int &y, int &z, int globalX, int globalY, int globalZ, int &chunkX, int &chunkZ)
+{
+	x = (globalX % Chunk::WIDTH + Chunk::WIDTH) % Chunk::WIDTH;
+	z = (globalZ % Chunk::DEPTH + Chunk::DEPTH) % Chunk::DEPTH;
+	y = globalY;
+
+	chunkX = globalX / Chunk::WIDTH;
+	if (globalX < 0 && globalX % Chunk::WIDTH != 0)
+		chunkX--;
+
+	chunkZ = globalZ / Chunk::DEPTH;
+	if (globalZ < 0 && globalZ % Chunk::DEPTH != 0)
+		chunkZ--;
+}
+
+BlockType World::getBlockWorld(glm::ivec3 globalCoords)
+{
+	int x, y, z;
+	int chunkX, chunkZ;
+	globalCoordsToLocalCoords(x, y, z, globalCoords.x, globalCoords.y, globalCoords.z, chunkX, chunkZ);
+
+	auto it = chunks.find(std::make_pair(chunkX, chunkZ));
+	if (it == chunks.end()) {
+		return BlockType::AIR;
+	}
+	Chunk* currChunk = it->second;
+	return currChunk->getBlock(x, y, z);
+}
+
+void World::setBlockWorld(glm::ivec3 globalCoords, BlockType type)
+{
+	int x, y, z;
+	int chunkX, chunkZ;
+	globalCoordsToLocalCoords(x, y, z, globalCoords.x, globalCoords.y, globalCoords.z, chunkX, chunkZ);
+
+	auto it = chunks.find(std::make_pair(chunkX, chunkZ));
+	if (it == chunks.end())
+		return ;
+
+	Chunk* currChunk = it->second;
+	return currChunk->setBlock(this, x, y, z, type);
+}
+
+bool World::isBlockVisibleWorld(glm::ivec3 globalCoords)
+{
+	int x, y, z;
+	int chunkX, chunkZ;
+	globalCoordsToLocalCoords(x, y, z, globalCoords.x, globalCoords.y, globalCoords.z, chunkX, chunkZ);
+
+	auto it = chunks.find(std::make_pair(chunkX, chunkZ));
+	if (it == chunks.end()) {
+		return false;
+	}
+	Chunk* currChunk = it->second;
+	return currChunk->isBlockVisible(glm::vec3(x, y ,z));
+}
+
 void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
     
     const int dirX[] = { 0, 0, 1, -1 };
@@ -41,19 +98,10 @@ void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
             neighbor->setAdjacentChunks(opp[dir], chunk);
 
             if (neighbor->hasAllAdjacentChunkLoaded()) {
-                neighbor->updateVisibleBlocks();
-                neighbor->buildMesh();
+				neighbor->updateChunk();
             }
         }
     }
-}
-
-Chunk* World::getOrCreateChunk(int chunkX, int chunkZ) {
-    ChunkKey key = toKey(chunkX, chunkZ);
-    if (chunks.count(key) > 0)
-        return chunks[key];
-
-    return nullptr;
 }
 
 void World::updateVisibleChunks(const glm::vec3& cameraPos) {
@@ -66,7 +114,10 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
 
     for (int x = -radius; x <= radius; ++x) {
         for (int z = -radius; z <= radius; ++z) {
-            Chunk *chunk = getOrCreateChunk(currentChunkX + x, currentChunkZ + z);
+			if (x * x + z * z >= radius * radius)
+            	continue; // Skip chunks outside circular radius
+
+            Chunk *chunk = getChunk(currentChunkX + x, currentChunkZ + z);
 
             if (!chunk)
                 chunksToGenerate.emplace_back(std::make_pair(currentChunkX + x, currentChunkZ + z));
@@ -81,7 +132,6 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
         ChunkKey key = toKey(chunkX, chunkZ);
 
         futures.push_back(std::async(std::launch::async, [=]() {
-            // Make sure this does not access shared state!
             Chunk* chunk = new Chunk(chunkX, chunkZ);
             return std::make_pair(key, chunk);
         }));
@@ -90,14 +140,13 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
     // Wait for all threads to finish, insert into the map (single-threaded section)
     for (auto& future : futures) {
         auto [key, chunk] = future.get();
-        chunks[key] = chunk;  // Safe: chunks modified in main thread only
+        chunks[key] = chunk;
     }
 
     // Now safely link neighbors
     for (auto [chunkX, chunkZ] : chunksToGenerate) {
         linkNeighbors(chunkX, chunkZ, getChunk(chunkX, chunkZ));
     }
-
 }
 
 void World::render(const Shader* shaderProgram) const {
@@ -106,5 +155,4 @@ void World::render(const Shader* shaderProgram) const {
         count++;
         pair->draw(shaderProgram);
     }
-    // std::cout << "Chunks rendered: " << count << std::endl;
 }

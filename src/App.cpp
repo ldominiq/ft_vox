@@ -82,8 +82,8 @@ void App::init() {
         }
     });
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    
 
+	loadControlsFromFile();
 }
 
 void App::loadResources() {
@@ -133,6 +133,7 @@ void App::render() {
         world->updateVisibleChunks(camera->Position);
         world->render(activeShader);
         skybox->draw(camera->getViewMatrix(), projection);
+		camera->drawWireframeSelectedBlockFace(world, view, projection);
 
 
         // Swap buffers and poll events (keys pressed, mouse movement, etc.)
@@ -149,71 +150,128 @@ void App::run() {
 
 void App::cleanup() {
     glfwTerminate();
+	saveControls();
 }
 
-void App::processInput(){
-    static bool f11Held = false;
-    static bool f2Held = false;
-    static bool f1Held = false;
+void App::loadControlsDefaults() {
+    controlsArray[FORWARD]         = GLFW_KEY_W;
+    controlsArray[BACKWARD]        = GLFW_KEY_S;
+    controlsArray[LEFT]            = GLFW_KEY_A;
+    controlsArray[RIGHT]           = GLFW_KEY_D;
+    controlsArray[UP]              = GLFW_KEY_E;
+    controlsArray[DOWN]            = GLFW_KEY_Q;
+    controlsArray[LEFT_CLICK]      = GLFW_MOUSE_BUTTON_LEFT;
+    controlsArray[TOGGLE_FULLSCREEN] = GLFW_KEY_F11;
+    controlsArray[TOGGLE_WIREFRAME]  = GLFW_KEY_F1;
+    controlsArray[TOGGLE_SHADER]     = GLFW_KEY_F2;
+    controlsArray[MOVE_FAST]         = GLFW_KEY_LEFT_SHIFT;
+    controlsArray[CLOSE_WINDOW]      = GLFW_KEY_ESCAPE;
+}
 
-    // Fullscreen toggle with F11
-    if (glfwGetKey(window, GLFW_KEY_F11) == GLFW_PRESS && !f11Held) {
+void App::loadControlsFromFile(const char* filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        loadControlsDefaults();
+        return;
+    }
+
+    // Initialize defaults first
+    loadControlsDefaults();
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::string keyName;
+        int keyValue;
+        if (!(iss >> keyName >> keyValue)) continue;
+
+        for (int i = 0; i < CONTROL_COUNT; ++i) {
+            if (keyName == controlNames[i]) {
+                controlsArray[i] = keyValue;
+                break;
+            }
+        }
+    }
+}
+
+void App::saveControls(const char* filename) {
+    std::ofstream file(filename);
+    if (!file.is_open()) return; // handle errors as you want
+
+    for (int i = 0; i < CONTROL_COUNT; ++i) {
+        file << controlNames[i] << " " << controlsArray[i] << "\n";
+    }
+
+	file << "\n\n# see 'https://www.glfw.org/docs/latest/group__keys.html' for key values" << '\n';
+}
+
+void App::processInput() {
+    static bool f11Held = false;
+    static bool f1Held = false;
+    static bool f2Held = false;
+	static bool leftMousePressedLastFrame = false;
+
+    // Toggle Fullscreen
+    if (glfwGetKey(window, controlsArray[TOGGLE_FULLSCREEN]) == GLFW_PRESS && !f11Held) {
         toggleDisplayMode();
         f11Held = true;
     }
-    if (glfwGetKey(window, GLFW_KEY_F11) == GLFW_RELEASE) {
+    if (glfwGetKey(window, controlsArray[TOGGLE_FULLSCREEN]) == GLFW_RELEASE) {
         f11Held = false;
     }
 
-    // Toggle wireframe mode with F1
-    if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS && !f1Held && !wireframe) {
-        wireframe = true;
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    // Toggle Wireframe Mode
+    if (glfwGetKey(window, controlsArray[TOGGLE_WIREFRAME]) == GLFW_PRESS && !f1Held) {
+        wireframe = !wireframe;
+        glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
         f1Held = true;
     }
-    else if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS && !f1Held && wireframe) {
-        wireframe = false;
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        f1Held = true;
-    }
-    if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_RELEASE) {
+    if (glfwGetKey(window, controlsArray[TOGGLE_WIREFRAME]) == GLFW_RELEASE) {
         f1Held = false;
     }
 
-    // Toggle texture/gradient shader with F2
-    if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS && !f2Held) {
+    // Toggle Shader
+    if (glfwGetKey(window, controlsArray[TOGGLE_SHADER]) == GLFW_PRESS && !f2Held) {
         useGradientShader = !useGradientShader;
         activeShader = useGradientShader ? textureShader : gradientShader;
         f2Held = true;
     }
-    if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_RELEASE) {
+    if (glfwGetKey(window, controlsArray[TOGGLE_SHADER]) == GLFW_RELEASE) {
         f2Held = false;
     }
 
-    // Move camera with WASD keys
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        camera->processKeyboard(Camera_Movement::FORWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        camera->processKeyboard(Camera_Movement::BACKWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camera->processKeyboard(Camera_Movement::LEFT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        camera->processKeyboard(Camera_Movement::RIGHT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
+    // Movement
+    if (glfwGetKey(window, controlsArray[FORWARD]) == GLFW_PRESS)
+        camera->processKeyboard(FORWARD, deltaTime);
+    if (glfwGetKey(window, controlsArray[BACKWARD]) == GLFW_PRESS)
+        camera->processKeyboard(BACKWARD, deltaTime);
+    if (glfwGetKey(window, controlsArray[LEFT]) == GLFW_PRESS)
+        camera->processKeyboard(LEFT, deltaTime);
+    if (glfwGetKey(window, controlsArray[RIGHT]) == GLFW_PRESS)
+        camera->processKeyboard(RIGHT, deltaTime);
 
-    // Move up and down with A and E
-    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+    // Move up/down
+    if (glfwGetKey(window, controlsArray[UP]) == GLFW_PRESS)
         camera->Position.y += 1.0f;
-    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+    if (glfwGetKey(window, controlsArray[DOWN]) == GLFW_PRESS)
         camera->Position.y -= 1.0f;
 
     // Move faster
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+    if (glfwGetKey(window, controlsArray[MOVE_FAST]) == GLFW_PRESS)
         camera->MovementSpeed = 50.0f;
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE)
+    if (glfwGetKey(window, controlsArray[MOVE_FAST]) == GLFW_RELEASE)
         camera->MovementSpeed = 10.0f;
+
+	int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+	if (state == GLFW_PRESS && !leftMousePressedLastFrame)
+		camera->removeTargettedBlock(world);
+	leftMousePressedLastFrame = (state == GLFW_PRESS);
+
+    // Exit
+    if (glfwGetKey(window, controlsArray[CLOSE_WINDOW]) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
 }
+
 
 void App::updateWindowTitle() {
     const float currentFrame = glfwGetTime();

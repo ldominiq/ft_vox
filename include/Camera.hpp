@@ -4,14 +4,15 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-enum class Camera_Movement {
-    FORWARD,
-    BACKWARD,
-    LEFT,
-    RIGHT
-};
+#include "World.hpp"
 
 class Camera {
+
+	GLuint wireframeVAO, wireframeVBO, wireframeEBO;
+
+	void initWireframeCube();
+	Shader* blockWireframeShader = nullptr;
+
 public:
     glm::vec3 Position;
     glm::vec3 Front;
@@ -26,9 +27,14 @@ public:
     explicit Camera(glm::vec3 position);
 
     glm::mat4 getViewMatrix() const;
-    void processKeyboard(Camera_Movement direction, float deltaTime);
+	Shader* getBlockWireframeShader();
+    void processKeyboard(int direction, float deltaTime);
     void processMouseMovement(float xoffset, float yoffset);
     void updateCameraVectors();
+	
+	bool getTargetedBlock(World *world, glm::ivec3& hitBlock, glm::ivec3& faceNormal, float maxDistance = 100); //faceNormal is currently unused
+	void removeTargettedBlock(World *world);
+	void drawWireframeSelectedBlockFace(World *world, glm::mat4 view, glm::mat4 projection);
 };
 
 
