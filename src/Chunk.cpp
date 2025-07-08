@@ -216,7 +216,7 @@ void Chunk::generate() {
             std::mt19937 rng(seed);
 
             // int numWorms = (rng() % 5); // 0 to 1 worms per chunk
-            int numWorms = (rng() % 10 == 0) ? 1 : 0; //1 out of 5 to generate 1 worm
+            int numWorms = (rng() % 50 == 0) ? 1 : 0; //1 out of 5 to generate 1 worm
 
             for (int i = 0; i < numWorms; ++i) {
                 float localX = (float)(rng() % WIDTH);
@@ -490,5 +490,8 @@ void Chunk::updateChunk()
 void Chunk::draw(const Shader* shaderProgram) const {
     shaderProgram->use();
     glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, meshVertices.size() / 3);
+    glDrawArrays(GL_TRIANGLES, 0, meshVertices.size() / 6); // 6 floats per vertex (3 pos + 2 tex + 1 Y)
+
+    std::cout << "Chunk at (" << originX << ", " << originZ << ") drawn with "
+              << meshVertices.size() / 6 << " vertices." << std::endl;
 }
