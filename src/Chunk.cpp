@@ -4,8 +4,6 @@
 const int ATLAS_COLS = 6;
 const int ATLAS_ROWS = 1;
 
-
-
 // This function maps block type + face to UV offset
 glm::vec2 getTextureOffset(const BlockType type, const int face) {
     int col = 0;
@@ -45,7 +43,12 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
 
 Chunk::Chunk(const int chunkX, const int chunkZ) : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH){
 	visibleBlocksSet.reserve(WIDTH * DEPTH * HEIGHT);
+	m_needsUpdate = true;
     generate();
+}
+
+bool Chunk::needsUpdate() const {
+	return m_needsUpdate;
 }
 
 bool Chunk::hasAllAdjacentChunkLoaded() const {
@@ -405,6 +408,8 @@ void Chunk::buildMesh() {
     // layout(location = 2) = float vertexY
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void *>(5 * sizeof(float)));
     glEnableVertexAttribArray(2);
+
+	visibleBlocks.clear();
 }
 
 void Chunk::addFace(int x, int y, int z, int face) {
@@ -477,14 +482,13 @@ void Chunk::addFace(int x, int y, int z, int face) {
         meshVertices.push_back(v);
         meshVertices.push_back(py);  // send Y again for gradient
     }
-
-
 }
 
 void Chunk::updateChunk()
 {
 	updateVisibleBlocks();
 	buildMesh();
+	m_needsUpdate = false;
 }
 
 void Chunk::draw(const Shader* shaderProgram) const {

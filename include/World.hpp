@@ -26,6 +26,8 @@ public:
     World();
     ~World();
 
+	std::vector<Chunk*> getRenderedChunks();
+
     void updateVisibleChunks(const glm::vec3& cameraPos);
     void render(const Shader* shaderProgram) const;
 

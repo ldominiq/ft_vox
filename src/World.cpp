@@ -24,6 +24,11 @@ Chunk* World::getChunk(const int chunkX, const int chunkZ) {
     return chunks[key];
 }
 
+std::vector<Chunk*> World::getRenderedChunks()
+{
+	return renderedChunks;
+}
+
 void World::globalCoordsToLocalCoords(int &x, int &y, int &z, int globalX, int globalY, int globalZ, int &chunkX, int &chunkZ)
 {
 	x = (globalX % Chunk::WIDTH + Chunk::WIDTH) % Chunk::WIDTH;
@@ -82,7 +87,9 @@ bool World::isBlockVisibleWorld(glm::ivec3 globalCoords)
 }
 
 void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
-    
+    if (!chunk)
+		return ;
+
     const int dirX[] = { 0, 0, 1, -1 };
     const int dirZ[] = { 1, -1, 0, 0 };
     const int opp[]  = { SOUTH, NORTH, WEST, EAST };
@@ -147,6 +154,25 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
     for (auto [chunkX, chunkZ] : chunksToGenerate) {
         linkNeighbors(chunkX, chunkZ, getChunk(chunkX, chunkZ));
     }
+
+	for (auto [chunkX, chunkZ] : chunksToGenerate) {
+		//makes chunk POSSIBLY visible instantly
+		// Chunk* chunk = getChunk(chunkX, chunkZ);
+		// if (chunk && chunk->hasAllAdjacentChunkLoaded()) {
+		// 	chunk->updateChunk();
+		// }
+
+		// Check each of the 4 neighbors again now that this chunk exists to make sure there are no empty chunks. TODO: refactor.
+		const int dirX[] = { 0, 0, 1, -1 };
+		const int dirZ[] = { 1, -1, 0, 0 };
+
+		for (int dir = 0; dir < 4; ++dir) {
+			Chunk* neighbor = getChunk(chunkX + dirX[dir], chunkZ + dirZ[dir]);
+			if (neighbor && neighbor->needsUpdate() && neighbor->hasAllAdjacentChunkLoaded()) {
+				neighbor->updateChunk();
+			}
+		}
+	}
 }
 
 void World::render(const Shader* shaderProgram) const {

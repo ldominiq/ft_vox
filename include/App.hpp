@@ -34,7 +34,7 @@
     X(TOGGLE_FULLSCREEN)	\
     X(TOGGLE_WIREFRAME)		\
     X(TOGGLE_SHADER)		\
-    X(CLOSE_WINDOW)
+    X(CLOSE_WINDOW)			\
 
 enum controls {
 #define X(name) name,

@@ -154,18 +154,18 @@ void App::cleanup() {
 }
 
 void App::loadControlsDefaults() {
-    controlsArray[FORWARD]         = GLFW_KEY_W;
-    controlsArray[BACKWARD]        = GLFW_KEY_S;
-    controlsArray[LEFT]            = GLFW_KEY_A;
-    controlsArray[RIGHT]           = GLFW_KEY_D;
-    controlsArray[UP]              = GLFW_KEY_E;
-    controlsArray[DOWN]            = GLFW_KEY_Q;
-    controlsArray[LEFT_CLICK]      = GLFW_MOUSE_BUTTON_LEFT;
-    controlsArray[TOGGLE_FULLSCREEN] = GLFW_KEY_F11;
-    controlsArray[TOGGLE_WIREFRAME]  = GLFW_KEY_F1;
-    controlsArray[TOGGLE_SHADER]     = GLFW_KEY_F2;
-    controlsArray[MOVE_FAST]         = GLFW_KEY_LEFT_SHIFT;
-    controlsArray[CLOSE_WINDOW]      = GLFW_KEY_ESCAPE;
+	controlsArray[FORWARD]				= GLFW_KEY_W;
+	controlsArray[BACKWARD]        		= GLFW_KEY_S;
+	controlsArray[LEFT]					= GLFW_KEY_A;
+	controlsArray[RIGHT]				= GLFW_KEY_D;
+    controlsArray[UP]					= GLFW_KEY_E;
+    controlsArray[DOWN]					= GLFW_KEY_Q;
+    controlsArray[LEFT_CLICK]			= GLFW_MOUSE_BUTTON_LEFT;
+    controlsArray[TOGGLE_FULLSCREEN]	= GLFW_KEY_F11;
+    controlsArray[TOGGLE_WIREFRAME]		= GLFW_KEY_F1;
+    controlsArray[TOGGLE_SHADER]		= GLFW_KEY_F2;
+    controlsArray[MOVE_FAST]			= GLFW_KEY_LEFT_SHIFT;
+    controlsArray[CLOSE_WINDOW]			= GLFW_KEY_ESCAPE;
 }
 
 void App::loadControlsFromFile(const char* filename) {
@@ -210,6 +210,14 @@ void App::processInput() {
     static bool f1Held = false;
     static bool f2Held = false;
 	static bool leftMousePressedLastFrame = false;
+
+	//reload chunk. F3 + A;
+	if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS &&
+    	glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		for (auto chunk : world->getRenderedChunks())
+			chunk->updateChunk();
+		return;
+	}
 
     // Toggle Fullscreen
     if (glfwGetKey(window, controlsArray[TOGGLE_FULLSCREEN]) == GLFW_PRESS && !f11Held) {

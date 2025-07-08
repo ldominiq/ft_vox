@@ -75,9 +75,11 @@ public:
 	void setAdjacentChunks(int direction, Chunk *chunk);
 	bool hasAllAdjacentChunkLoaded() const;
 
+	bool needsUpdate() const;
 	void updateChunk(); //updateVisibleBlocks + buildMesh. Used when updating blocks in a chunk
 
 private:
+	bool m_needsUpdate;
 	Chunk *adjacentChunks[4] = {};
 
     BlockType blocks[WIDTH][HEIGHT][DEPTH]; // 3D array of blocks
