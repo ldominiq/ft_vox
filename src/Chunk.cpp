@@ -105,7 +105,7 @@ void Chunk::generate() {
     biomeNoise.SetFrequency(0.001f); // low = large biomes
 
     FastNoiseLite baseNoise;
-    baseNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    baseNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     baseNoise.SetFrequency(0.01f); // standard terrain noise
 
     FastNoiseLite warp;
@@ -394,17 +394,25 @@ void Chunk::buildMesh() {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, meshVertices.size() * sizeof(float), meshVertices.data(), GL_STATIC_DRAW);
 
+    // Currantly, we use 9 floats per vertex:
+    // 3 for position, 2 for texture coordinates, 1 for vertex Y (for gradient), and 3 for normal.
+    GLsizei stride = 9 * sizeof(float);
+
     // layout(location = 0) = vec3 position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), static_cast<void *>(nullptr));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, static_cast<void *>(nullptr));
     glEnableVertexAttribArray(0);
 
     // layout(location = 1) = vec2 texCoord
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void *>(3 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
     // layout(location = 2) = float vertexY
-    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void *>(5 * sizeof(float)));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(5 * sizeof(float)));
     glEnableVertexAttribArray(2);
+
+    // layout(location = 3) = vec3 normal
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(6 * sizeof(float)));
+    glEnableVertexAttribArray(3);
 }
 
 void Chunk::addFace(int x, int y, int z, int face) {
@@ -450,6 +458,17 @@ void Chunk::addFace(int x, int y, int z, int face) {
         0, 0
     };
 
+    static const glm::vec3 faceNormals[6] = {
+        {  0,  0,  1 }, // front
+        {  0,  0, -1 }, // back
+        {  0,  1,  0 }, // top
+        {  0, -1,  0 }, // bottom
+        {  1,  0,  0 }, // right
+        { -1,  0,  0 }  // left
+    };
+
+    glm::vec3 normal = faceNormals[face];
+
     // Get block type for this position
     const BlockType type = blocks[x][y][z];
 
@@ -476,8 +495,10 @@ void Chunk::addFace(int x, int y, int z, int face) {
         meshVertices.push_back(u);
         meshVertices.push_back(v);
         meshVertices.push_back(py);  // send Y again for gradient
+        meshVertices.push_back(normal.x);
+        meshVertices.push_back(normal.y);
+        meshVertices.push_back(normal.z);
     }
-
 
 }
 
@@ -491,7 +512,4 @@ void Chunk::draw(const Shader* shaderProgram) const {
     shaderProgram->use();
     glBindVertexArray(VAO);
     glDrawArrays(GL_TRIANGLES, 0, meshVertices.size() / 6); // 6 floats per vertex (3 pos + 2 tex + 1 Y)
-
-    std::cout << "Chunk at (" << originX << ", " << originZ << ") drawn with "
-              << meshVertices.size() / 6 << " vertices." << std::endl;
 }

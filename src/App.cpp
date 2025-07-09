@@ -96,7 +96,7 @@ void App::loadResources() {
     activeShader = textureShader;
 
     activeShader->use();
-    activeShader->setInt("texture1", 0);
+    activeShader->setInt("atlas", 0);
 }
 
 void App::render() {
@@ -129,6 +129,10 @@ void App::render() {
         // Set the uniform matrices in the shader
         activeShader->setMat4("view", view);
         activeShader->setMat4("projection", projection);
+
+        activeShader->setVec3("lightDir", glm::normalize(glm::vec3(-0.5f, -1.0f, -0.3f)));
+        activeShader->setVec3("lightColor", glm::vec3(1.0f));
+        activeShader->setVec3("ambientColor", glm::vec3(0.3f));
         
         world->updateVisibleChunks(camera->Position);
         world->render(activeShader);

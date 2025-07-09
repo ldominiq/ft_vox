@@ -147,6 +147,10 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
     for (auto [chunkX, chunkZ] : chunksToGenerate) {
         linkNeighbors(chunkX, chunkZ, getChunk(chunkX, chunkZ));
     }
+    
+    std::cout << "Chunks in memory: " << chunks.size() << std::endl;
+    std::cout << "Rendered chunks: " << renderedChunks.size() << std::endl;
+    std::cout << "Chunks to generate: " << chunksToGenerate.size() << std::endl;
 }
 
 void World::render(const Shader* shaderProgram) const {
