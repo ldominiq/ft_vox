@@ -69,7 +69,7 @@ void World::setBlockWorld(glm::ivec3 globalCoords, BlockType type)
 		return ;
 
 	Chunk* currChunk = it->second;
-	return currChunk->setBlock(this, x, y, z, type);
+	return currChunk->setBlock(x, y, z, type);
 }
 
 bool World::isBlockVisibleWorld(glm::ivec3 globalCoords)
@@ -114,15 +114,15 @@ void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
 void World::updateVisibleChunks(const glm::vec3& cameraPos) {
     chunksToGenerate.clear();
     renderedChunks.clear();
-    constexpr int radius = 16; // Load chunks around the player
+    constexpr int radius = 2; // Load chunks around the player
 
     const int currentChunkX = static_cast<int>(std::floor(cameraPos.x / Chunk::WIDTH));
     const int currentChunkZ = static_cast<int>(std::floor(cameraPos.z / Chunk::DEPTH));
 
     for (int x = -radius; x <= radius; ++x) {
         for (int z = -radius; z <= radius; ++z) {
-			if (x * x + z * z >= radius * radius)
-            	continue; // Skip chunks outside circular radius
+			// if (x * x + z * z >= radius * radius)
+            	// continue; // Skip chunks outside circular radius
 
             Chunk *chunk = getChunk(currentChunkX + x, currentChunkZ + z);
 

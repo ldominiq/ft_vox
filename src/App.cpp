@@ -278,6 +278,23 @@ void App::processInput() {
     // Exit
     if (glfwGetKey(window, controlsArray[CLOSE_WINDOW]) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+
+
+	bool cursorDisabled = true;
+	bool kWasPressed = false;
+
+	// In your main loop:
+	// if (glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS) {
+	// 	if (!kWasPressed) {
+	// 		cursorDisabled = !cursorDisabled;  // Toggle state
+	// 		glfwSetInputMode(window, GLFW_CURSOR,
+	// 			cursorDisabled ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+	// 		kWasPressed = true;
+	// 	}
+	// } else {
+	// 	kWasPressed = false;  // Reset once key is released
+	// }
+
 }
 
 

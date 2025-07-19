@@ -10,12 +10,14 @@
 #include <cmath>
 #include <iostream>
 #include <ostream>
-#include "Block.hpp"
 #include "Shader.hpp"
 #include "FastNoiseLite.h"
 
 #include <random>
 #include <unordered_set>
+
+#include "Block.hpp"
+#include "BitPackedArray.hpp"
 
 class World;
 
@@ -57,6 +59,7 @@ public:
     static constexpr int WIDTH = 16; // Size of the chunck in blocks
     static constexpr int HEIGHT = 256; // Height of the chunck in blocks
     static constexpr int DEPTH = 16; // Depth of the chunck in blocks
+    static constexpr int BLOCK_COUNT = WIDTH * HEIGHT * DEPTH;
 
     Chunk(int chunkX, int chunkZ);
     
@@ -64,7 +67,7 @@ public:
     void generate();
 
     BlockType getBlock(int x, int y, int z) const;
-    void setBlock(World *world, int x, int y, int z, BlockType type);
+	void setBlock(int x, int y, int z, BlockType block);
 
     const std::vector<glm::ivec3>& getVisibleBlocks() const;
 
@@ -79,10 +82,15 @@ public:
 	void updateChunk(); //updateVisibleBlocks + buildMesh. Used when updating blocks in a chunk
 
 private:
+
 	bool m_needsUpdate;
 	Chunk *adjacentChunks[4] = {};
 
-    BlockType blocks[WIDTH][HEIGHT][DEPTH]; // 3D array of blocks
+	std::vector<BlockType> palette; // Index -> BlockType
+	std::unordered_map<BlockType, uint32_t> paletteMap; // BlockType -> Index
+    BitPackedArray blockIndices;
+
+	std::vector<BlockType> blockCache;	// unpacked block indices
     std::vector<glm::ivec3> visibleBlocks; // List of visible blocks for rendering
 	std::unordered_set<glm::ivec3, IVec3Hash> visibleBlocksSet; //copy of visibly blocks for 0(1) Lookup
 	

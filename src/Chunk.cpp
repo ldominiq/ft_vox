@@ -41,9 +41,11 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
 }
 
 
-Chunk::Chunk(const int chunkX, const int chunkZ) : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH){
-	visibleBlocksSet.reserve(WIDTH * DEPTH * HEIGHT);
-	m_needsUpdate = true;
+Chunk::Chunk(const int chunkX, const int chunkZ) 
+    : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH),
+      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4),  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
+	m_needsUpdate(true)
+{
     generate();
 }
 
@@ -95,7 +97,7 @@ void Chunk::carveWorm(Worm &worm) {
                 const int bz = static_cast<int>(p.z - originZ);
 
                 if (bx >= 0 && bx < WIDTH && by >= 0 && by < HEIGHT && bz >= 0 && bz < DEPTH) {
-                    blocks[bx][by][bz] = BlockType::AIR;
+					setBlock(bx, by, bz, BlockType::AIR);
                 }
             }
         }
@@ -184,24 +186,26 @@ void Chunk::generate() {
             int height = static_cast<int>(glm::clamp(heightF, 1.0f, (float)HEIGHT - 1));
 
             // Block layers based on biome
-            for (int y = 0; y < HEIGHT; ++y) {
-                if (y < height - 4) {
-                    blocks[x][y][z] = BlockType::STONE;
-                } else if (y < height - 1) {
-                    blocks[x][y][z] = (biome == BiomeType::DESERT) ? BlockType::SAND : BlockType::DIRT;
-                } else if (y < height) {
-                    blocks[x][y][z] = [&] {
-                        switch (biome) {
-                            case BiomeType::DESERT: return BlockType::SAND;
-                            case BiomeType::SNOW:   return BlockType::SNOW;
-                            case BiomeType::MOUNTAIN: return BlockType::STONE;
-                            default: return BlockType::GRASS;
-                        }
-                    }();
-                } else {
-                    blocks[x][y][z] = BlockType::AIR;
-                }
-            }
+			for (int y = 0; y < HEIGHT; ++y) {
+				BlockType block = BlockType::AIR;
+
+				if (y < height - 4) {
+					block = BlockType::STONE;
+				} else if (y < height - 1) {
+					block = (biome == BiomeType::DESERT) ? BlockType::SAND : BlockType::DIRT;
+				} else if (y < height) {
+					block = [&] {
+						switch (biome) {
+							case BiomeType::DESERT:    return BlockType::SAND;
+							case BiomeType::SNOW:      return BlockType::SNOW;
+							case BiomeType::MOUNTAIN:  return BlockType::STONE;
+							default:                   return BlockType::GRASS;
+						}
+					}();
+				}
+
+				setBlock(x, y, z, block);
+			}
         }
     }
 
@@ -242,16 +246,35 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH) {
         return BlockType::AIR; // Out of bounds returns air
     }
-    return blocks[x][y][z];
+
+    int index = x + WIDTH * (z + DEPTH * y);
+    uint32_t paletteIndex = blockIndices.get(index);
+    return palette[paletteIndex];
 }
 
-void Chunk::setBlock(World *world, int x, int y, int z, BlockType type) {
+//TODO create a system to compact the data once in a while. So it doesn't get too fragmented after many delete/set calls. If I understood correctly
+void Chunk::setBlock(int x, int y, int z, BlockType type) {
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH) {
         return; // Out of bounds, do nothing
     }
-    blocks[x][y][z] = type;
 
-	updateChunk();
+    int index = x + WIDTH * (z + DEPTH * y);
+
+    auto it = paletteMap.find(type);
+    uint32_t paletteIndex;
+
+    if (it == paletteMap.end()) {
+        paletteIndex = static_cast<uint32_t>(palette.size());
+        palette.push_back(type);
+        paletteMap[type] = paletteIndex;
+    } else {
+        paletteIndex = it->second;
+    }
+
+    blockIndices.set(index, paletteIndex);
+
+	if (!m_needsUpdate)
+		updateChunk();
 
 	//update possible neighbour
 	if (x == 0 && adjacentChunks[WEST])	adjacentChunks[WEST]->updateChunk();
@@ -264,66 +287,62 @@ void Chunk::updateVisibleBlocks() {
     visibleBlocks.clear();
 	visibleBlocksSet.clear();
 
-    for (int x = 0; x < WIDTH; ++x) {
-        for (int y = 0; y < HEIGHT; ++y) {
-            for (int z = 0; z < DEPTH; ++z) {
-                if (blocks[x][y][z] == BlockType::AIR) continue;
+	blockCache.resize(WIDTH * HEIGHT * DEPTH);
 
-                bool exposed = false;
+	std::vector<uint32_t> decodedIndices;
+	blockIndices.decodeAllFast(decodedIndices);
 
-                // -X direction
-                if (x == 0) {
-                    exposed |= adjacentChunks[WEST] == nullptr || 
-                               adjacentChunks[WEST]->getBlock(WIDTH - 1, y, z) == BlockType::AIR;
-                } else {
-                    exposed |= blocks[x - 1][y][z] == BlockType::AIR;
-                }
+	for (size_t i = 0; i < blockCache.size(); ++i) {
+		uint32_t paletteIndex = decodedIndices[i];
+		blockCache[i] = palette[paletteIndex];
+	}
 
-                // +X direction
-                if (x == WIDTH - 1) {
-                    exposed |= adjacentChunks[EAST] == nullptr || 
-                               adjacentChunks[EAST]->getBlock(0, y, z) == BlockType::AIR;
-                } else {
-                    exposed |= blocks[x + 1][y][z] == BlockType::AIR;
-                }
+	for (int x = 0; x < WIDTH; ++x) {
+		for (int y = 0; y < HEIGHT; ++y) {
+			for (int z = 0; z < DEPTH; ++z) {
+				BlockType block = blockCache[x + WIDTH * (z + DEPTH * y)];
+				if (block == BlockType::AIR) continue;
 
-                // -Y direction (bottom)
-                if (y == 0) {
-                    exposed = true;
-                } else {
-                    exposed |= blocks[x][y - 1][z] == BlockType::AIR;
-                }
+				bool exposed = false;
 
-                // +Y direction (top)
-                if (y == HEIGHT - 1) {
-                    exposed = true;
-                } else {
-                    exposed |= blocks[x][y + 1][z] == BlockType::AIR;
-                }
+				// -X
+				exposed |= (x == 0)
+					? (adjacentChunks[WEST] == nullptr || adjacentChunks[WEST]->getBlock(WIDTH - 1, y, z) == BlockType::AIR)
+					: (blockCache[(x - 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR);
 
-                // -Z direction
-                if (z == 0) {
-                    exposed |= adjacentChunks[SOUTH] == nullptr || 
-                               adjacentChunks[SOUTH]->getBlock(x, y, DEPTH - 1) == BlockType::AIR;
-                } else {
-                    exposed |= blocks[x][y][z - 1] == BlockType::AIR;
-                }
+				// +X
+				exposed |= (x == WIDTH - 1)
+					? (adjacentChunks[EAST] == nullptr || adjacentChunks[EAST]->getBlock(0, y, z) == BlockType::AIR)
+					: (blockCache[(x + 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR);
 
-                // +Z direction
-                if (z == DEPTH - 1) {
-                    exposed |= adjacentChunks[NORTH] == nullptr || 
-                               adjacentChunks[NORTH]->getBlock(x, y, 0) == BlockType::AIR;
-                } else {
-                    exposed |= blocks[x][y][z + 1] == BlockType::AIR;
-                }
+				// -Y (bottom)
+				exposed |= (y == 0)
+					? true
+					: (blockCache[x + WIDTH * (z + DEPTH * (y - 1))] == BlockType::AIR);
 
-                if (exposed) {
-                    visibleBlocks.emplace_back(x, y, z);
+				// +Y (top)
+				exposed |= (y == HEIGHT - 1)
+					? true
+					: (blockCache[x + WIDTH * (z + DEPTH * (y + 1))] == BlockType::AIR);
+
+				// -Z
+				exposed |= (z == 0)
+					? (adjacentChunks[SOUTH] == nullptr || adjacentChunks[SOUTH]->getBlock(x, y, DEPTH - 1) == BlockType::AIR)
+					: (blockCache[x + WIDTH * ((z - 1) + DEPTH * y)] == BlockType::AIR);
+
+				// +Z
+				exposed |= (z == DEPTH - 1)
+					? (adjacentChunks[NORTH] == nullptr || adjacentChunks[NORTH]->getBlock(x, y, 0) == BlockType::AIR)
+					: (blockCache[x + WIDTH * ((z + 1) + DEPTH * y)] == BlockType::AIR);
+
+				if (exposed) {
+					visibleBlocks.emplace_back(x, y, z);
 					visibleBlocksSet.insert(glm::ivec3(x, y, z));
-                }
-            }
-        }
-    }
+				}
+			}
+		}
+	}
+
 }
 
 bool Chunk::isBlockVisible(glm::ivec3 blockPos)
@@ -336,20 +355,21 @@ const std::vector<glm::ivec3>& Chunk::getVisibleBlocks() const {
 }
 
 void Chunk::buildMesh() {
-    meshVertices.clear();
+	meshVertices.clear();
 
-	for (auto block : visibleBlocks) {
+	for (const auto& block : visibleBlocks) {
 		int x = block.x;
 		int y = block.y;
 		int z = block.z;
 
-		if (blocks[x][y][z] == BlockType::AIR) continue;
+		int idx = x + WIDTH * (z + DEPTH * y);
+		if (blockCache[idx] == BlockType::AIR) continue;
 
 		// FRONT (+Z)
 		if (z == DEPTH - 1) {
 			if (!adjacentChunks[NORTH] || adjacentChunks[NORTH]->getBlock(x, y, 0) == BlockType::AIR)
 				addFace(x, y, z, 0);
-		} else if (blocks[x][y][z + 1] == BlockType::AIR) {
+		} else if (blockCache[x + WIDTH * ((z + 1) + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 0);
 		}
 
@@ -357,23 +377,25 @@ void Chunk::buildMesh() {
 		if (z == 0) {
 			if (!adjacentChunks[SOUTH] || adjacentChunks[SOUTH]->getBlock(x, y, DEPTH - 1) == BlockType::AIR)
 				addFace(x, y, z, 1);
-		} else if (blocks[x][y][z - 1] == BlockType::AIR) {
+		} else if (blockCache[x + WIDTH * ((z - 1) + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 1);
 		}
 
-		// TOP (+Y) – no chunk above, so no neighbor
-		if (y == HEIGHT - 1 || blocks[x][y + 1][z] == BlockType::AIR)
+		// TOP (+Y)
+		if (y == HEIGHT - 1 || blockCache[x + WIDTH * (z + DEPTH * (y + 1))] == BlockType::AIR) {
 			addFace(x, y, z, 2);
+		}
 
-		// BOTTOM (-Y) – no chunk below, so no neighbor
-		if (y == 0 || blocks[x][y - 1][z] == BlockType::AIR)
+		// BOTTOM (-Y)
+		if (y == 0 || blockCache[x + WIDTH * (z + DEPTH * (y - 1))] == BlockType::AIR) {
 			addFace(x, y, z, 3);
+		}
 
 		// RIGHT (+X)
 		if (x == WIDTH - 1) {
 			if (!adjacentChunks[EAST] || adjacentChunks[EAST]->getBlock(0, y, z) == BlockType::AIR)
 				addFace(x, y, z, 4);
-		} else if (blocks[x + 1][y][z] == BlockType::AIR) {
+		} else if (blockCache[(x + 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 4);
 		}
 
@@ -381,7 +403,7 @@ void Chunk::buildMesh() {
 		if (x == 0) {
 			if (!adjacentChunks[WEST] || adjacentChunks[WEST]->getBlock(WIDTH - 1, y, z) == BlockType::AIR)
 				addFace(x, y, z, 5);
-		} else if (blocks[x - 1][y][z] == BlockType::AIR) {
+		} else if (blockCache[(x - 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 5);
 		}
 	}
@@ -410,6 +432,9 @@ void Chunk::buildMesh() {
     glEnableVertexAttribArray(2);
 
 	visibleBlocks.clear();
+	visibleBlocks.resize(0);
+	// blockCache.clear();
+	// blockCache.resize(0);
 }
 
 void Chunk::addFace(int x, int y, int z, int face) {
@@ -456,7 +481,7 @@ void Chunk::addFace(int x, int y, int z, int face) {
     };
 
     // Get block type for this position
-    const BlockType type = blocks[x][y][z];
+    const BlockType type = getBlock(x, y, z);
 
     // Determine UV offset in atlas based on block type and face
     glm::vec2 tileCoord = getTextureOffset(type, face);

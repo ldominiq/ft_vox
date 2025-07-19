@@ -40,6 +40,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(stb)
 
+if(ASAN)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g -O1")
+    set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fsanitize=address")
+endif()
+
 file(GLOB SRC "src/*.cpp")
 
 if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
