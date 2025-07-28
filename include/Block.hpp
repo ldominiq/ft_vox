@@ -1,5 +1,6 @@
 #ifndef BLOCK_HPP
 #define BLOCK_HPP
+#include <cstdint>
 
 enum class BlockType {
     AIR,
@@ -9,6 +10,12 @@ enum class BlockType {
     SAND,
     SNOW
 
+};
+
+struct Voxel {
+    BlockType type;
+    uint8_t skyLight; // 0-15, sunlight propagated from sky
+    uint8_t blockLight; // 0-15, emitted from torches, etc.
 };
 
 class Block {

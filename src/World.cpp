@@ -64,6 +64,15 @@ void World::setBlockWorld(glm::ivec3 globalCoords, BlockType type)
 		return ;
 
 	Chunk* currChunk = it->second;
+	// re-propagate sky/block light
+	Chunk* chunk = getChunk(chunkX, chunkZ);
+	if (!chunk) return;
+
+	chunk->initializeSkyLight();
+	chunk->propagateSkyLight();
+
+	chunk->updateChunk();
+
 	return currChunk->setBlock(this, x, y, z, type);
 }
 
@@ -145,7 +154,24 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos) {
 
     // Now safely link neighbors
     for (auto [chunkX, chunkZ] : chunksToGenerate) {
-        linkNeighbors(chunkX, chunkZ, getChunk(chunkX, chunkZ));
+    	Chunk* chunk = getChunk(chunkX, chunkZ);
+        linkNeighbors(chunkX, chunkZ, chunk);
+
+    	// Newly generated chunk: update sky light now that neighbours are known
+    	chunk->initializeSkyLight();
+    	chunk->propagateSkyLight();
+
+    	// Also update neighbours on boudaries, since light can flow into them
+    	const int dirX[] = { 0, 0, 1, -1 };
+    	const int dirZ[] = { 1, -1, 0, 0 };
+		for (int dir = 0; dir < 4; ++dir) {
+			Chunk* n = getChunk(chunkX + dirX[dir], chunkZ + dirZ[dir]);
+			if (n) {
+				n->initializeSkyLight();
+				n->propagateSkyLight();
+			}
+		}
+    	chunk->updateChunk();
     }
     
     std::cout << "Chunks in memory: " << chunks.size() << std::endl;

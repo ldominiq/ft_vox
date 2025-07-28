@@ -4,8 +4,6 @@
 const int ATLAS_COLS = 6;
 const int ATLAS_ROWS = 1;
 
-
-
 // This function maps block type + face to UV offset
 glm::vec2 getTextureOffset(const BlockType type, const int face) {
     int col = 0;
@@ -92,7 +90,7 @@ void Chunk::carveWorm(Worm &worm) {
                 const int bz = static_cast<int>(p.z - originZ);
 
                 if (bx >= 0 && bx < WIDTH && by >= 0 && by < HEIGHT && bz >= 0 && bz < DEPTH) {
-                    blocks[bx][by][bz] = BlockType::AIR;
+                    voxels[bx][by][bz].type = BlockType::AIR;
                 }
             }
         }
@@ -183,11 +181,11 @@ void Chunk::generate() {
             // Block layers based on biome
             for (int y = 0; y < HEIGHT; ++y) {
                 if (y < height - 4) {
-                    blocks[x][y][z] = BlockType::STONE;
+                    voxels[x][y][z].type = BlockType::STONE;
                 } else if (y < height - 1) {
-                    blocks[x][y][z] = (biome == BiomeType::DESERT) ? BlockType::SAND : BlockType::DIRT;
+                    voxels[x][y][z].type = (biome == BiomeType::DESERT) ? BlockType::SAND : BlockType::DIRT;
                 } else if (y < height) {
-                    blocks[x][y][z] = [&] {
+                    voxels[x][y][z].type = [&] {
                         switch (biome) {
                             case BiomeType::DESERT: return BlockType::SAND;
                             case BiomeType::SNOW:   return BlockType::SNOW;
@@ -196,7 +194,7 @@ void Chunk::generate() {
                         }
                     }();
                 } else {
-                    blocks[x][y][z] = BlockType::AIR;
+                    voxels[x][y][z].type = BlockType::AIR;
                 }
             }
         }
@@ -232,6 +230,8 @@ void Chunk::generate() {
             }
         }
     }
+    initializeSkyLight();
+    propagateSkyLight();
 }
 
 
@@ -239,14 +239,14 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH) {
         return BlockType::AIR; // Out of bounds returns air
     }
-    return blocks[x][y][z];
+    return voxels[x][y][z].type;
 }
 
 void Chunk::setBlock(World *world, int x, int y, int z, BlockType type) {
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH) {
         return; // Out of bounds, do nothing
     }
-    blocks[x][y][z] = type;
+    voxels[x][y][z].type = type;
 
 	updateChunk();
 
@@ -264,7 +264,7 @@ void Chunk::updateVisibleBlocks() {
     for (int x = 0; x < WIDTH; ++x) {
         for (int y = 0; y < HEIGHT; ++y) {
             for (int z = 0; z < DEPTH; ++z) {
-                if (blocks[x][y][z] == BlockType::AIR) continue;
+                if (voxels[x][y][z].type == BlockType::AIR) continue;
 
                 bool exposed = false;
 
@@ -273,7 +273,7 @@ void Chunk::updateVisibleBlocks() {
                     exposed |= adjacentChunks[WEST] == nullptr || 
                                adjacentChunks[WEST]->getBlock(WIDTH - 1, y, z) == BlockType::AIR;
                 } else {
-                    exposed |= blocks[x - 1][y][z] == BlockType::AIR;
+                    exposed |= voxels[x - 1][y][z].type == BlockType::AIR;
                 }
 
                 // +X direction
@@ -281,21 +281,21 @@ void Chunk::updateVisibleBlocks() {
                     exposed |= adjacentChunks[EAST] == nullptr || 
                                adjacentChunks[EAST]->getBlock(0, y, z) == BlockType::AIR;
                 } else {
-                    exposed |= blocks[x + 1][y][z] == BlockType::AIR;
+                    exposed |= voxels[x + 1][y][z].type == BlockType::AIR;
                 }
 
                 // -Y direction (bottom)
                 if (y == 0) {
                     exposed = true;
                 } else {
-                    exposed |= blocks[x][y - 1][z] == BlockType::AIR;
+                    exposed |= voxels[x][y - 1][z].type == BlockType::AIR;
                 }
 
                 // +Y direction (top)
                 if (y == HEIGHT - 1) {
                     exposed = true;
                 } else {
-                    exposed |= blocks[x][y + 1][z] == BlockType::AIR;
+                    exposed |= voxels[x][y + 1][z].type == BlockType::AIR;
                 }
 
                 // -Z direction
@@ -303,7 +303,7 @@ void Chunk::updateVisibleBlocks() {
                     exposed |= adjacentChunks[SOUTH] == nullptr || 
                                adjacentChunks[SOUTH]->getBlock(x, y, DEPTH - 1) == BlockType::AIR;
                 } else {
-                    exposed |= blocks[x][y][z - 1] == BlockType::AIR;
+                    exposed |= voxels[x][y][z - 1].type == BlockType::AIR;
                 }
 
                 // +Z direction
@@ -311,7 +311,7 @@ void Chunk::updateVisibleBlocks() {
                     exposed |= adjacentChunks[NORTH] == nullptr || 
                                adjacentChunks[NORTH]->getBlock(x, y, 0) == BlockType::AIR;
                 } else {
-                    exposed |= blocks[x][y][z + 1] == BlockType::AIR;
+                    exposed |= voxels[x][y][z + 1].type == BlockType::AIR;
                 }
 
                 if (exposed) {
@@ -340,13 +340,13 @@ void Chunk::buildMesh() {
 		int y = block.y;
 		int z = block.z;
 
-		if (blocks[x][y][z] == BlockType::AIR) continue;
+		if (voxels[x][y][z].type == BlockType::AIR) continue;
 
 		// FRONT (+Z)
 		if (z == DEPTH - 1) {
 			if (!adjacentChunks[NORTH] || adjacentChunks[NORTH]->getBlock(x, y, 0) == BlockType::AIR)
 				addFace(x, y, z, 0);
-		} else if (blocks[x][y][z + 1] == BlockType::AIR) {
+		} else if (voxels[x][y][z + 1].type == BlockType::AIR) {
 			addFace(x, y, z, 0);
 		}
 
@@ -354,23 +354,23 @@ void Chunk::buildMesh() {
 		if (z == 0) {
 			if (!adjacentChunks[SOUTH] || adjacentChunks[SOUTH]->getBlock(x, y, DEPTH - 1) == BlockType::AIR)
 				addFace(x, y, z, 1);
-		} else if (blocks[x][y][z - 1] == BlockType::AIR) {
+		} else if (voxels[x][y][z - 1].type == BlockType::AIR) {
 			addFace(x, y, z, 1);
 		}
 
 		// TOP (+Y) – no chunk above, so no neighbor
-		if (y == HEIGHT - 1 || blocks[x][y + 1][z] == BlockType::AIR)
+		if (y == HEIGHT - 1 || voxels[x][y + 1][z].type == BlockType::AIR)
 			addFace(x, y, z, 2);
 
 		// BOTTOM (-Y) – no chunk below, so no neighbor
-		if (y == 0 || blocks[x][y - 1][z] == BlockType::AIR)
+		if (y == 0 || voxels[x][y - 1][z].type == BlockType::AIR)
 			addFace(x, y, z, 3);
 
 		// RIGHT (+X)
 		if (x == WIDTH - 1) {
 			if (!adjacentChunks[EAST] || adjacentChunks[EAST]->getBlock(0, y, z) == BlockType::AIR)
 				addFace(x, y, z, 4);
-		} else if (blocks[x + 1][y][z] == BlockType::AIR) {
+		} else if (voxels[x + 1][y][z].type == BlockType::AIR) {
 			addFace(x, y, z, 4);
 		}
 
@@ -378,7 +378,7 @@ void Chunk::buildMesh() {
 		if (x == 0) {
 			if (!adjacentChunks[WEST] || adjacentChunks[WEST]->getBlock(WIDTH - 1, y, z) == BlockType::AIR)
 				addFace(x, y, z, 5);
-		} else if (blocks[x - 1][y][z] == BlockType::AIR) {
+		} else if (voxels[x - 1][y][z].type == BlockType::AIR) {
 			addFace(x, y, z, 5);
 		}
 	}
@@ -396,7 +396,7 @@ void Chunk::buildMesh() {
 
     // Currantly, we use 9 floats per vertex:
     // 3 for position, 2 for texture coordinates, 1 for vertex Y (for gradient), and 3 for normal.
-    GLsizei stride = 9 * sizeof(float);
+    GLsizei stride = 10 * sizeof(float);
 
     // layout(location = 0) = vec3 position
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, static_cast<void *>(nullptr));
@@ -406,13 +406,17 @@ void Chunk::buildMesh() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    // layout(location = 2) = float vertexY
+    // layout(location = 2) = float vertexY (gradient)
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(5 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
-    // layout(location = 3) = vec3 normal
-    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(6 * sizeof(float)));
+    // layout(location = 3) = float light
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(6 * sizeof(float)));
     glEnableVertexAttribArray(3);
+
+    // layout(location = 4) = vec3 normal
+    glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(7 * sizeof(float)));
+    glEnableVertexAttribArray(4);
 }
 
 void Chunk::addFace(int x, int y, int z, int face) {
@@ -470,13 +474,153 @@ void Chunk::addFace(int x, int y, int z, int face) {
     glm::vec3 normal = faceNormals[face];
 
     // Get block type for this position
-    const BlockType type = blocks[x][y][z];
+    const BlockType type = voxels[x][y][z].type;
 
     // Determine UV offset in atlas based on block type and face
     glm::vec2 tileCoord = getTextureOffset(type, face);
     glm::vec2 offset = { tileCoord.x * TILE_W, tileCoord.y * TILE_H };
 
+    // Determine the light for this face
+    uint8_t neighbourSky = 0;
+    uint8_t neighbourBlock = 0;
+    switch (face) {
+        case 0: { // front (+Z)
+            int nz = z + 1;
+            if (nz < DEPTH) {
+                const Voxel& v = voxels[x][y][nz];
+                neighbourSky = v.skyLight;
+                neighbourBlock = v.blockLight;
+            } else if (adjacentChunks[NORTH]) {
+                const Voxel& v = adjacentChunks[NORTH]->voxels[x][y][0];
+                neighbourSky = v.skyLight;
+                neighbourBlock = v.blockLight;
+            } else {
+                // If no neighbouring chunk is loaded, fall back to this block's own light
+                neighbourSky = voxels[x][y][z].skyLight;
+                neighbourBlock = voxels[x][y][z].blockLight;
+            }
+            break;
+        }
+        case 1: { // back (–Z)
+            int nz = z - 1;
+            if (nz >= 0) {
+                const Voxel& v = voxels[x][y][nz];
+                neighbourSky = v.skyLight;
+                neighbourBlock = v.blockLight;
+            } else if (adjacentChunks[SOUTH]) {
+                const Voxel& v = adjacentChunks[SOUTH]->voxels[x][y][DEPTH - 1];
+                neighbourSky = v.skyLight;
+                neighbourBlock = v.blockLight;
+            } else {
+                neighbourSky = voxels[x][y][z].skyLight;
+                neighbourBlock = voxels[x][y][z].blockLight;
+            }
+            break;
+        }
+        case 2: { // top (+Y)
+            int ny = y + 1;
+            if (ny < HEIGHT) {
+                const Voxel& v = voxels[x][ny][z];
+                neighbourSky = v.skyLight;
+                neighbourBlock = v.blockLight;
+            } else {
+                neighbourSky = 15; // nothing above so full sunlight
+            }
+            break;
+        }
+        case 3: { // bottom (–Y)
+            int ny = y - 1;
+            if (ny >= 0) {
+                const Voxel& v = voxels[x][ny][z];
+                neighbourSky = v.skyLight;
+                neighbourBlock = v.blockLight;
+            } else {
+                neighbourSky = 0; // underground
+            }
+            break;
+        }
+        case 4: { // right (+X)
+            int nx = x + 1;
+            if (nx < WIDTH) {
+                const Voxel& v = voxels[nx][y][z];
+                neighbourSky = v.skyLight;
+                neighbourBlock = v.blockLight;
+            } else if (adjacentChunks[EAST]) {
+                const Voxel& v = adjacentChunks[EAST]->voxels[0][y][z];
+                neighbourSky = v.skyLight;
+                neighbourBlock = v.blockLight;
+            } else {
+                neighbourSky = voxels[x][y][z].skyLight;
+                neighbourBlock = voxels[x][y][z].blockLight;
+            }
+            break;
+        }
+        case 5: { // left (–X)
+            int nx = x - 1;
+            if (nx >= 0) {
+                const Voxel& v = voxels[nx][y][z];
+                neighbourSky = v.skyLight;
+                neighbourBlock = v.blockLight;
+            } else if (adjacentChunks[WEST]) {
+                const Voxel& v = adjacentChunks[WEST]->voxels[WIDTH - 1][y][z];
+                neighbourSky = v.skyLight;
+                neighbourBlock = v.blockLight;
+            } else {
+                neighbourSky = voxels[x][y][z].skyLight;
+                neighbourBlock = voxels[x][y][z].blockLight;
+            }
+            break;
+        }
+    }
+    // Take into account both the block's own light and the neighbouring light.
+    // A solid block may have skyLight if it is the topmost block in a column.
+    uint8_t blockSky   = voxels[x][y][z].skyLight;
+    uint8_t blockBlock = voxels[x][y][z].blockLight;
+    uint8_t combinedSky;
+    uint8_t combinedBlock;
+    // Decide how to combine block and neighbour light depending on face orientation.
+    // Top face: use the brighter of the block and neighbour.
+    // Bottom face: use the neighbour.
+    // Vertical faces: use the neighbour but dim it slightly to avoid bright stripes.
+    switch (face) {
+        case 2: { // top (+Y)
+            combinedSky   = std::max(blockSky, neighbourSky);
+            combinedBlock = std::max(blockBlock, neighbourBlock);
+            // Dim the top face slightly to avoid pure white surfaces by reducing the light by two levels
+            if (combinedSky > 2) {
+                combinedSky -= 2;
+            } else {
+                combinedSky = 0;
+            }
+            if (combinedBlock > 2) {
+                combinedBlock -= 2;
+            } else {
+                combinedBlock = 0;
+            }
+            break;
+        }
+        case 3: { // bottom (-Y)
+            combinedSky   = neighbourSky;
+            combinedBlock = neighbourBlock;
+            break;
+        }
+        default: {
+            // vertical faces: rely on neighbour's light but attenuate it by one level
+            // Dim the neighbour light for vertical faces by two levels to prevent very bright strips.
+            uint8_t attenuatedSky   = (neighbourSky   > 1) ? static_cast<uint8_t>(neighbourSky   - 2) : 0;
+            uint8_t attenuatedBlock = (neighbourBlock > 1) ? static_cast<uint8_t>(neighbourBlock - 2) : 0;
+            combinedSky   = attenuatedSky;
+            combinedBlock = attenuatedBlock;
+            break;
+        }
+    }
+    // Normalize the resulting light to the range [0,1]
+    float lightVal = static_cast<float>(std::max(combinedSky, combinedBlock)) / 15.0f;
+    // Clamp to a minimum brightness so faces are never completely black and never pure white.
+    // This mixes the computed light with a base ambient term. Adjust the constants to taste.
+    lightVal = 0.2f + 0.8f * lightVal;
 
+    // Build six vertices for this face using the computed light
     for (int i = 0; i < 6; ++i) {
         float px = faceX + faceData[face][i * 3 + 0];
         float py = faceY + faceData[face][i * 3 + 1];
@@ -488,13 +632,13 @@ void Chunk::addFace(int x, int y, int z, int face) {
         float u = baseU * TILE_W + offset.x;
         float v = baseV * TILE_H + offset.y;
 
-
-        meshVertices.push_back(px);
-        meshVertices.push_back(py);
-        meshVertices.push_back(pz);
-        meshVertices.push_back(u);
-        meshVertices.push_back(v);
-        meshVertices.push_back(py);  // send Y again for gradient
+        meshVertices.push_back(px);    // position.x
+        meshVertices.push_back(py);    // position.y
+        meshVertices.push_back(pz);    // position.z
+        meshVertices.push_back(u);     // texture u
+        meshVertices.push_back(v);     // texture v
+        meshVertices.push_back(py);    // send Y again for gradient
+        meshVertices.push_back(lightVal); // computed light
         meshVertices.push_back(normal.x);
         meshVertices.push_back(normal.y);
         meshVertices.push_back(normal.z);
@@ -511,5 +655,78 @@ void Chunk::updateChunk()
 void Chunk::draw(const Shader* shaderProgram) const {
     shaderProgram->use();
     glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, meshVertices.size() / 6); // 6 floats per vertex (3 pos + 2 tex + 1 Y)
+    glDrawArrays(GL_TRIANGLES, 0, meshVertices.size() / 10); // 6 floats per vertex (3 pos + 2 tex + 1 Y)
+}
+
+void Chunk::initializeSkyLight() {
+    // Assign full sunlight to all air blocks above the first solid block in each column
+    // and to the first solid block itself. All blocks below the topmost solid block
+    // start with 0 skyLight (in shadow).
+    for (int x = 0; x < WIDTH; ++x) {
+        for (int z = 0; z < DEPTH; ++z) {
+            bool hitSolid = false;
+            for (int y = HEIGHT - 1; y >= 0; --y) {
+                Voxel& voxel = voxels[x][y][z];
+                // Reset block light to zero to avoid uninitialised values causing bright spots
+                voxel.blockLight = 0;
+                if (!hitSolid) {
+                    // Before hitting a solid block (including the solid itself), assign full light
+                    voxel.skyLight = 15;
+                    if (voxel.type != BlockType::AIR) {
+                        // Mark that we've encountered the topmost solid block
+                        hitSolid = true;
+                    }
+                } else {
+                    // Once we've hit a solid block, remaining blocks are initially dark
+                    voxel.skyLight = 0;
+                }
+            }
+        }
+    }
+}
+
+void Chunk::propagateSkyLight() {
+    std::queue<Node> queue;
+    //enqueue all sky-lit voxels on the chunk surface
+    for (int x=0; x<WIDTH; ++x) {
+        for (int z=0; z<DEPTH; ++z) {
+            for (int y=HEIGHT-1; y>=0 && voxels[x][y][z].skyLight == 15; --y) {
+                queue.push({x, y, z, 15});
+            }
+        }
+    }
+
+    // BFS (Flood-fill algorithm)
+    static const int dx[] = {1,-1,0,0,0,0};
+    static const int dy[] = {0,0,1,-1,0,0};
+    static const int dz[] = {0,0,0,0,1,-1};
+    while (!queue.empty()) {
+        Node node = queue.front();
+        queue.pop();
+        for (int i=0; i<6; ++i) {
+            int nx = node.x + dx[i];
+            int ny = node.y + dy[i];
+            int nz = node.z + dz[i];
+            if (nx < 0 || nx >= WIDTH ||
+                ny < 0 || ny >= HEIGHT ||
+                nz < 0 || nz >= DEPTH) continue;
+            Voxel& voxel = voxels[nx][ny][nz];
+            // Skip if block is opaque
+            if (voxel.type != BlockType::AIR) continue;
+            // Next light level
+            int nextLight = node.light - 1;
+            if (nextLight > (int)voxel.skyLight) {
+                voxel.skyLight = nextLight;
+                if (nextLight > 1) {
+                    queue.push({nx, ny, nz, nextLight});
+                }
+            }
+        }
+    }
+}
+
+float Chunk::getLight(int x, int y, int z) const {
+    const Voxel &voxel = voxels[x][y][z];
+    int maxLight = std::max(voxel.skyLight, voxel.blockLight);
+    return static_cast<float>(maxLight) / 15.0f;
 }

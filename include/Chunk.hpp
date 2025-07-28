@@ -16,6 +16,7 @@
 
 #include <random>
 #include <unordered_set>
+#include <queue>
 
 class World;
 
@@ -52,6 +53,8 @@ enum class BiomeType {
     SNOW
 };
 
+struct Node { int x, y, z, light; };
+
 class Chunk {
 public:
     static constexpr int WIDTH = 16; // Size of the chunck in blocks
@@ -77,10 +80,15 @@ public:
 
 	void updateChunk(); //updateVisibleBlocks + buildMesh. Used when updating blocks in a chunk
 
+	void initializeSkyLight();
+	void propagateSkyLight();
+
+	float getLight(int x, int y, int z) const;
+
 private:
 	Chunk *adjacentChunks[4] = {};
 
-    BlockType blocks[WIDTH][HEIGHT][DEPTH]; // 3D array of blocks
+    Voxel voxels[WIDTH][HEIGHT][DEPTH]; // 3D array of blocks
     std::vector<glm::ivec3> visibleBlocks; // List of visible blocks for rendering
 	std::unordered_set<glm::ivec3, IVec3Hash> visibleBlocksSet; //copy of visibly blocks for 0(1) Lookup
 	
