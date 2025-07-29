@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 project(ft_vox LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(FetchContent)
 
 # Glad
@@ -50,6 +51,33 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/shaders)
   file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})
 endif()
 
+# ---------------------------------------------------------------------------
+# ImGui integration
+# ---------------------------------------------------------------------------
+set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui)
+
+set(IMGUI_SOURCES
+        ${IMGUI_DIR}/imgui.cpp
+        ${IMGUI_DIR}/imgui_draw.cpp
+        ${IMGUI_DIR}/imgui_widgets.cpp
+        ${IMGUI_DIR}/imgui_tables.cpp
+        ${IMGUI_DIR}/imgui_demo.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+)
+
+# Create a static library for ImGui
+add_library(imgui STATIC ${IMGUI_SOURCES})
+
+target_include_directories(imgui PUBLIC
+        ${IMGUI_DIR}
+        ${IMGUI_DIR}/backends
+)
+
+# Link ImGui to GLFW (it needs GLFW for its backend)
+# Also link against dl on Linux for dynamic loading (glad/glfw handle OpenGL loader)
+target_link_libraries(imgui PUBLIC glfw ${CMAKE_DL_LIBS})
+
 add_executable(${PROJECT_NAME} ${SRC})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -65,6 +93,7 @@ find_package(OpenGL REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE
   glfw
   glad
+  imgui
   OpenGL::GL
   dl
   pthread

@@ -18,6 +18,8 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+// glm for vector types used in lighting controls
+#include <glm/vec3.hpp>
 // #include <glm/glm.hpp>
 // #include <glm/gtc/matrix_transform.hpp>
 // #include <glm/gtc/type_ptr.hpp>
@@ -104,6 +106,30 @@ private:
     bool useGradientShader = true;
 
     float renderDistance = 1000.0f; // Distance of the far clipping plane
+
+    // Lighting parameters that can be tweaked via ImGui.  The direction
+    // should be normalised each frame; colours are in [0,1].
+    glm::vec3 lightDir  = glm::vec3(-0.5f, -1.0f, -0.3f);
+    glm::vec3 lightColor = glm::vec3(1.0f);
+    glm::vec3 ambientColor = glm::vec3(0.3f);
+
+    // Variables for smoothing the FPS shown in the debug UI.  We maintain a
+    // moving average of frame times over a sample buffer to reduce jitter.
+    std::vector<float> fpsSamples;
+    static const size_t fpsSampleCount = 60;
+    float uiDisplayFPS = 0.0f;
+
+    // Helper to query the current process’s resident set size (RSS) in bytes.
+    // Used in the debug UI to show approximate memory usage.
+    static size_t getCurrentRSS();
+
+    // --- ImGui / UI state ---
+    // Whether the debug overlay is interactive.  When true the mouse is
+    // released and the debug window captures input; when false the window
+    // remains visible but does not capture input.
+    bool uiInteractive = false;
+    // Internal flag to handle key debounce for toggling the interactive mode.
+    bool uiToggleHeld = false;
 
 	//keeps track of control GLFW values
     int controlsArray[CONTROL_COUNT];
