@@ -3,10 +3,6 @@
 //
 
 #include "World.hpp"
-// Additional includes for asynchronous chunk generation and timing
-#include <chrono>
-#include <future>
-// #include <utility>
 
 World::World() {
 }
@@ -70,9 +66,6 @@ void World::setBlockWorld(glm::ivec3 globalCoords, BlockType type)
 	// re-propagate sky/block light
 	Chunk* chunk = getChunk(chunkX, chunkZ);
 	if (!chunk) return;
-
-	chunk->initializeSkyLight();
-	chunk->propagateSkyLight();
 
 	chunk->updateChunk();
 
@@ -245,18 +238,6 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
                 int chunkX = cx;
                 int chunkZ = cz;
                 linkNeighbors(chunkX, chunkZ, newChunk);
-                newChunk->initializeSkyLight();
-                newChunk->propagateSkyLight();
-                // Propagate into neighbours on boundaries
-                const int dirX[] = { 0, 0, 1, -1 };
-                const int dirZ[] = { 1, -1, 0, 0 };
-                for (int dir = 0; dir < 4; ++dir) {
-                    Chunk* n = getChunk(chunkX + dirX[dir], chunkZ + dirZ[dir]);
-                    if (n) {
-                        n->initializeSkyLight();
-                        n->propagateSkyLight();
-                    }
-                }
                 newChunk->updateChunk();
             }
             // Remove this future from the list regardless of whether we

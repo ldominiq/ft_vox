@@ -53,8 +53,6 @@ enum class BiomeType {
     SNOW
 };
 
-struct Node { int x, y, z, light; };
-
 class Chunk {
 public:
     static constexpr int WIDTH = 16; // Size of the chunck in blocks
@@ -79,11 +77,6 @@ public:
 	bool hasAllAdjacentChunkLoaded() const;
 
 	void updateChunk(); //updateVisibleBlocks + buildMesh. Used when updating blocks in a chunk
-
-	void initializeSkyLight();
-	void propagateSkyLight();
-
-	float getLight(int x, int y, int z) const;
 
 private:
 	Chunk *adjacentChunks[4] = {};

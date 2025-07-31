@@ -3,7 +3,6 @@
 in vec2 TexCoord;
 in vec3 Normal;
 in vec3 FragPos;
-in float vLight;
 
 out vec4 FragColor;
 
@@ -18,7 +17,7 @@ void main() {
     vec3 norm = normalize(Normal);
     float diff = max(dot(norm, -lightDir), 0.0);
 
-    vec3 lighting = texColor.rgb * (ambientColor + lightColor * diff) * vLight;
+    vec3 lighting = texColor.rgb * (ambientColor + lightColor * diff);
 
     //FragColor = vec4(texColor.rgb * vLight, texColor.a);
     FragColor = vec4(lighting, texColor.a);

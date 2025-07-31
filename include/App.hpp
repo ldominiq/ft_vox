@@ -103,7 +103,7 @@ private:
     int windowedWidth = 1280;
     int windowedHeight = 720;
 
-    bool useGradientShader = true;
+    bool useGradientShader = false;
 
     float renderDistance = 1000.0f; // Distance of the far clipping plane
 
