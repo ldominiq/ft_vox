@@ -3,7 +3,6 @@
 //
 
 #include "World.hpp"
-// #include <utility>
 
 World::World() {
 }
@@ -111,64 +110,163 @@ void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
     }
 }
 
-void World::updateVisibleChunks(const glm::vec3& cameraPos) {
-    chunksToGenerate.clear();
-    renderedChunks.clear();
-    constexpr int radius = 12; // Load chunks around the player
-
+void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cameraDir) {
+    // Unload distant chunks to free memory.  Chunks beyond (loadRadius + 2)
+    // in a circular distance from the camera are removed.  We copy the keys
+    // to a temporary list to avoid invalidating the iterator while erasing.
+    const int unloadRadius = loadRadius + 2;
+    std::vector<ChunkKey> toRemove;
     const int currentChunkX = static_cast<int>(std::floor(cameraPos.x / Chunk::WIDTH));
     const int currentChunkZ = static_cast<int>(std::floor(cameraPos.z / Chunk::DEPTH));
-
-	if (chunks.size() > 1000) {
-		std::cout << chunks.size() << std::endl;
-		for (auto it = chunks.begin(); it != chunks.end(); ) {
-			int dx = it->first.first - currentChunkX;
-			int dz = it->first.second - currentChunkZ;
-			if (std::sqrt(dx*dx + dz*dz) > 20) {
-				delete it->second;          // free the Chunk*
-				it = chunks.erase(it);      // erase returns next iterator
-			} else {
-				++it;
-			}
-			// std::cout << std::sqrt(dx*dx + dz*dz) << std::endl;
-		}
-		std::cout << chunks.size() << std::endl;
-	}
-
-    for (int x = -radius; x <= radius; ++x) {
-        for (int z = -radius; z <= radius; ++z) {
-			// if (x * x + z * z >= radius * radius)
-            	// continue; // Skip chunks outside circular radius
-
-            Chunk *chunk = getChunk(currentChunkX + x, currentChunkZ + z);
-
-            if (!chunk)
-                chunksToGenerate.emplace_back(std::make_pair(currentChunkX + x, currentChunkZ + z));
-            else
-                renderedChunks.emplace_back(chunk);
+    for (const auto& entry : chunks) {
+        const int cx = entry.first.first;
+        const int cz = entry.first.second;
+        const int dx = cx - currentChunkX;
+        const int dz = cz - currentChunkZ;
+        if (dx * dx + dz * dz > unloadRadius * unloadRadius) {
+            toRemove.push_back(entry.first);
+        }
+    }
+    for (const auto& key : toRemove) {
+        // Remove from generatingChunks if present
+        generatingChunks.erase(key);
+        // Erase any pending future for this chunk (not strictly necessary since
+        // finished futures will be ignored, but it cleans up the list)
+        for (auto it = generationFutures.begin(); it != generationFutures.end(); ) {
+            // We can’t peek into a future’s result without blocking, so we
+            // simply compare the stored key if available using shared data.  The
+            // lambda captured the key by value, so we need to get it from
+            // future.get().  Instead, we skip erasing futures here and let
+            // them complete; on completion we’ll discard the chunk if it
+            // isn’t in the desired radius.
+            ++it;
+        }
+        // Delete the chunk and remove from map
+        auto it = chunks.find(key);
+        if (it != chunks.end()) {
+            delete it->second;
+            chunks.erase(it);
         }
     }
 
-    std::vector<std::future<std::pair<ChunkKey, Chunk*>>> futures;
+    // Clear lists of chunks to generate and chunks to render.  We will
+    // repopulate them based on the current camera position and loadRadius.
+    chunksToGenerate.clear();
+    renderedChunks.clear();
 
-    for (auto [chunkX, chunkZ] : chunksToGenerate) {
-        ChunkKey key = toKey(chunkX, chunkZ);
 
-        futures.push_back(std::async(std::launch::async, [=]() {
-            Chunk* chunk = new Chunk(chunkX, chunkZ);
-            return std::make_pair(key, chunk);
-        }));
+
+    // Determine which chunks we need within the circular radius.  For every
+    // candidate coordinate we either mark it for generation or add it to the
+    // rendered list.  We intentionally skip coordinates outside the circle to
+    // approximate a circular load area.
+    std::vector<std::tuple<int, int, float>> candidates;
+
+    glm::vec2 camDir = glm::normalize(glm::vec2(cameraDir.x, cameraDir.z));
+
+    for (int dx = -loadRadius; dx <= loadRadius; ++dx) {
+        for (int dz = -loadRadius; dz <= loadRadius; ++dz) {
+            if (dx * dx + dz * dz >= loadRadius * loadRadius)
+                continue;
+
+            float dist = std::sqrt(dx * dx + dz * dz);
+            glm::vec2 offset(dx, dz);
+            float dirScore = glm::dot(glm::normalize(offset), camDir);
+            float priority = dirScore - dist * 0.05f; // prefer closer chunks and chunks in view
+
+            candidates.emplace_back(dx, dz, priority);
+        }
     }
 
-    // Wait for all threads to finish, insert into the map (single-threaded section)
-    for (auto& future : futures) {
-        auto [key, chunk] = future.get();
-        chunks[key] = chunk;
+    // Sort by priority descending (chunks in front and closer come first)
+    std::sort(candidates.begin(), candidates.end(),
+              [](const auto& a, const auto& b) {
+                  return std::get<2>(a) > std::get<2>(b);
+              });
+
+    for (const auto& [dx, dz, priority] : candidates) {
+        const int cx = currentChunkX + dx;
+        const int cz = currentChunkZ + dz;
+        ChunkKey key = toKey(cx, cz);
+        Chunk* chunk = getChunk(cx, cz);
+
+        if (!chunk) {
+            if (generatingChunks.find(key) == generatingChunks.end()) {
+                if (generationFutures.size() < maxConcurrentGeneration) {
+                    generatingChunks.insert(key);
+                    generationFutures.push_back(std::async(std::launch::async, [=]() {
+                        Chunk* newChunk = new Chunk(cx, cz);
+                        return std::make_pair(key, newChunk);
+                    }));
+                }
+            }
+        } else {
+            renderedChunks.push_back(chunk);
+        }
     }
 
-    // Now safely link neighbors
-    for (auto [chunkX, chunkZ] : chunksToGenerate) {
-        linkNeighbors(chunkX, chunkZ, getChunk(chunkX, chunkZ));
+
+    // Process a limited number of ready futures.  This spreads the cost of
+    // inserting chunks into the world over multiple frames and avoids long
+    // stalls while waiting for all chunks to generate at once.  We loop
+    // through the futures vector, checking each for readiness with a
+    // zero-duration wait.  When a future is ready we retrieve the chunk and
+    // insert it into the world, link neighbours, propagate light and update
+    // chunks.
+    std::size_t processed = 0;
+    for (auto it = generationFutures.begin(); it != generationFutures.end() && processed < maxChunkProcessPerFrame; ) {
+        std::future<std::pair<ChunkKey, Chunk*>>& fut = *it;
+        if (fut.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            auto result = fut.get();
+            ChunkKey key = result.first;
+            Chunk* newChunk = result.second;
+            // Remove from generating set since the task is complete
+            generatingChunks.erase(key);
+            // Determine if the chunk is still within the load radius.  If it
+            // is far away (beyond unloadRadius) we discard it to avoid
+            // accumulating memory for chunks that are no longer needed.
+            int cx = key.first;
+            int cz = key.second;
+            int dxChunk = cx - currentChunkX;
+            int dzChunk = cz - currentChunkZ;
+            if (dxChunk * dxChunk + dzChunk * dzChunk > unloadRadius * unloadRadius) {
+                // Outside the interest radius: delete and skip insertion
+                delete newChunk;
+            } else {
+                // Insert into the map
+                chunks[key] = newChunk;
+                // Link neighbours and propagate lighting
+                int chunkX = cx;
+                int chunkZ = cz;
+                linkNeighbors(chunkX, chunkZ, newChunk);
+                newChunk->updateChunk();
+            }
+            // Remove this future from the list regardless of whether we
+            // inserted the chunk
+            it = generationFutures.erase(it);
+            processed++;
+        } else {
+            ++it;
+        }
+    }
+
+    // Rebuild the renderedChunks list again after newly generated chunks may
+    // have been inserted.  This ensures that chunks created this frame are
+    // included in the rendering pass.  We simply iterate the same radius
+    // again and collect loaded chunks.
+    renderedChunks.clear();
+    for (int dx = -loadRadius; dx <= loadRadius; ++dx) {
+        for (int dz = -loadRadius; dz <= loadRadius; ++dz) {
+            if (dx * dx + dz * dz >= loadRadius * loadRadius) {
+                continue;
+            }
+            const int cx = currentChunkX + dx;
+            const int cz = currentChunkZ + dz;
+            Chunk* chunk = getChunk(cx, cz);
+            if (chunk) {
+                renderedChunks.push_back(chunk);
+            }
+        }
     }
 
 	for (auto [chunkX, chunkZ] : chunksToGenerate) {
@@ -197,4 +295,14 @@ void World::render(const Shader* shaderProgram) const {
         count++;
         pair->draw(shaderProgram);
     }
+}
+
+// Return the number of chunks currently in the rendered list.
+std::size_t World::getRenderedChunkCount() const {
+    return renderedChunks.size();
+}
+
+// Return the total number of chunks currently loaded in the world (in memory).
+std::size_t World::getTotalChunkCount() const {
+    return chunks.size();
 }

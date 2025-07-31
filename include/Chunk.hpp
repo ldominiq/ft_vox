@@ -15,6 +15,7 @@
 
 #include <random>
 #include <unordered_set>
+#include <queue>
 
 #include "Block.hpp"
 #include "BitPackedArray.hpp"

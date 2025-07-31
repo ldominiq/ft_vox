@@ -110,7 +110,7 @@ void Chunk::generate() {
     biomeNoise.SetFrequency(0.001f); // low = large biomes
 
     FastNoiseLite baseNoise;
-    baseNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    baseNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     baseNoise.SetFrequency(0.01f); // standard terrain noise
 
     FastNoiseLite warp;
@@ -223,7 +223,7 @@ void Chunk::generate() {
             std::mt19937 rng(seed);
 
             // int numWorms = (rng() % 5); // 0 to 1 worms per chunk
-            int numWorms = (rng() % 10 == 0) ? 1 : 0; //1 out of 5 to generate 1 worm
+            int numWorms = (rng() % 50 == 0) ? 1 : 0; //1 out of 5 to generate 1 worm
 
             for (int i = 0; i < numWorms; ++i) {
                 float localX = (float)(rng() % WIDTH);
@@ -419,17 +419,25 @@ void Chunk::buildMesh() {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, meshVertices.size() * sizeof(float), meshVertices.data(), GL_STATIC_DRAW);
 
+    // Currantly, we use 9 floats per vertex:
+    // 3 for position, 2 for texture coordinates, 1 for vertex Y (for gradient), and 3 for normal.
+    GLsizei stride = 9 * sizeof(float);
+
     // layout(location = 0) = vec3 position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), static_cast<void *>(nullptr));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, static_cast<void *>(nullptr));
     glEnableVertexAttribArray(0);
 
     // layout(location = 1) = vec2 texCoord
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void *>(3 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    // layout(location = 2) = float vertexY
-    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void *>(5 * sizeof(float)));
+    // layout(location = 2) = float vertexY (gradient)
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(5 * sizeof(float)));
     glEnableVertexAttribArray(2);
+
+    // layout(location = 3) = vec3 normal
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(6 * sizeof(float)));
+    glEnableVertexAttribArray(3);
 
 	meshVerticesSize = meshVertices.size();
 	meshVertices.clear();
@@ -485,6 +493,17 @@ void Chunk::addFace(int x, int y, int z, int face) {
         0, 0
     };
 
+    static const glm::vec3 faceNormals[6] = {
+        {  0,  0,  1 }, // front
+        {  0,  0, -1 }, // back
+        {  0,  1,  0 }, // top
+        {  0, -1,  0 }, // bottom
+        {  1,  0,  0 }, // right
+        { -1,  0,  0 }  // left
+    };
+
+    glm::vec3 normal = faceNormals[face];
+
     // Get block type for this position
     const BlockType type = getBlock(x, y, z);
 
@@ -492,7 +511,7 @@ void Chunk::addFace(int x, int y, int z, int face) {
     glm::vec2 tileCoord = getTextureOffset(type, face);
     glm::vec2 offset = { tileCoord.x * TILE_W, tileCoord.y * TILE_H };
 
-
+    // Build six vertices for this face using the computed light
     for (int i = 0; i < 6; ++i) {
         float px = faceX + faceData[face][i * 3 + 0];
         float py = faceY + faceData[face][i * 3 + 1];
@@ -504,13 +523,15 @@ void Chunk::addFace(int x, int y, int z, int face) {
         float u = baseU * TILE_W + offset.x;
         float v = baseV * TILE_H + offset.y;
 
-
-        meshVertices.push_back(px);
-        meshVertices.push_back(py);
-        meshVertices.push_back(pz);
-        meshVertices.push_back(u);
-        meshVertices.push_back(v);
-        meshVertices.push_back(py);  // send Y again for gradient
+        meshVertices.push_back(px);    // position.x
+        meshVertices.push_back(py);    // position.y
+        meshVertices.push_back(pz);    // position.z
+        meshVertices.push_back(u);     // texture u
+        meshVertices.push_back(v);     // texture v
+        meshVertices.push_back(py);    // send Y again for gradient
+        meshVertices.push_back(normal.x);
+        meshVertices.push_back(normal.y);
+        meshVertices.push_back(normal.z);
     }
 }
 
@@ -524,5 +545,5 @@ void Chunk::updateChunk()
 void Chunk::draw(const Shader* shaderProgram) const {
     shaderProgram->use();
     glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, meshVerticesSize / 3);
+    glDrawArrays(GL_TRIANGLES, 0, meshVerticesSize / 9); // 9 floats per vertex (3 pos + 2 tex + 1 Y + 3N)
 }
