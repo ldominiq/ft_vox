@@ -80,6 +80,30 @@ target_link_libraries(imgui PUBLIC glfw ${CMAKE_DL_LIBS})
 
 add_executable(${PROJECT_NAME} ${SRC})
 
+# Modified shader files are now always copied to build folder now when modified
+file(GLOB_RECURSE SHADER_FILES
+        "${CMAKE_SOURCE_DIR}/shaders/*.vert"
+        "${CMAKE_SOURCE_DIR}/shaders/*.frag"
+)
+
+add_custom_target(update_shaders DEPENDS ${SHADER_FILES})
+
+add_dependencies(${PROJECT_NAME} update_shaders)
+
+add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/shaders_timestamp
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/shaders
+        ${CMAKE_BINARY_DIR}/shaders
+        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_BINARY_DIR}/shaders_timestamp
+        DEPENDS ${SHADER_FILES}
+        COMMENT "Force copy shaders if any were modified"
+)
+
+add_custom_target(copy_shaders ALL DEPENDS ${CMAKE_BINARY_DIR}/shaders_timestamp)
+add_dependencies(${PROJECT_NAME} copy_shaders)
+
+
 target_include_directories(${PROJECT_NAME} PRIVATE
   include
   ${glm_SOURCE_DIR}
