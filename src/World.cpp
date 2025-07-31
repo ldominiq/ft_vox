@@ -114,10 +114,26 @@ void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
 void World::updateVisibleChunks(const glm::vec3& cameraPos) {
     chunksToGenerate.clear();
     renderedChunks.clear();
-    constexpr int radius = 2; // Load chunks around the player
+    constexpr int radius = 12; // Load chunks around the player
 
     const int currentChunkX = static_cast<int>(std::floor(cameraPos.x / Chunk::WIDTH));
     const int currentChunkZ = static_cast<int>(std::floor(cameraPos.z / Chunk::DEPTH));
+
+	if (chunks.size() > 1000) {
+		std::cout << chunks.size() << std::endl;
+		for (auto it = chunks.begin(); it != chunks.end(); ) {
+			int dx = it->first.first - currentChunkX;
+			int dz = it->first.second - currentChunkZ;
+			if (std::sqrt(dx*dx + dz*dz) > 20) {
+				delete it->second;          // free the Chunk*
+				it = chunks.erase(it);      // erase returns next iterator
+			} else {
+				++it;
+			}
+			// std::cout << std::sqrt(dx*dx + dz*dz) << std::endl;
+		}
+		std::cout << chunks.size() << std::endl;
+	}
 
     for (int x = -radius; x <= radius; ++x) {
         for (int z = -radius; z <= radius; ++z) {

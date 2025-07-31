@@ -53,7 +53,7 @@ uint32_t BitPackedArray::get(size_t index) const {
     return value;
 }
 
-void BitPackedArray::decodeAllFast(std::vector<uint32_t>& out) const {
+void BitPackedArray::decodeAll(std::vector<uint32_t>& out) const {
     out.resize(m_size);
 
     size_t bits = m_bitsPerEntry;
@@ -73,4 +73,43 @@ void BitPackedArray::decodeAllFast(std::vector<uint32_t>& out) const {
         out[i] = static_cast<uint32_t>(val) & mask;
         bitPos += bits;
     }
+}
+
+void BitPackedArray::encodeAll(const std::vector<uint32_t>& in) {
+    // if (in.size() != m_size)
+    //     throw std::invalid_argument("encodeAll - input size mismatch");
+
+    // size_t bits = m_bitsPerEntry;
+    // uint32_t mask = (1u << bits) - 1;
+    // size_t bitPos = 0;
+
+    // // Clear current data
+    // std::fill(m_data.begin(), m_data.end(), 0);
+
+    // const size_t n = m_size;
+    // for (size_t i = 0; i < n; ++i) {
+    //     uint32_t value = in[i];
+    //     if (value > mask) {
+    //         throw std::invalid_argument("encodeAll - value exceeds bit capacity");
+    //     }
+
+    //     size_t wordIndex = bitPos >> 5;  // bitPos / 32
+    //     size_t bitOffset = bitPos & 31;  // bitPos % 32
+
+    //     // Write into first word
+    //     m_data[wordIndex] |= (value & mask) << bitOffset;
+
+    //     // Handle overflow into next word
+    //     if (bitOffset + bits > 32) {
+    //         size_t bitsInNextWord = (bitOffset + bits) - 32;
+    //         m_data[wordIndex + 1] |= value >> (bits - bitsInNextWord);
+    //     }
+
+    //     bitPos += bits;
+    // }
+}
+
+std::vector<uint32_t> BitPackedArray::getData()
+{
+	return m_data;
 }

@@ -287,20 +287,20 @@ void Chunk::updateVisibleBlocks() {
     visibleBlocks.clear();
 	visibleBlocksSet.clear();
 
-	blockCache.resize(WIDTH * HEIGHT * DEPTH);
+	blockTypeVector.resize(WIDTH * HEIGHT * DEPTH);
 
 	std::vector<uint32_t> decodedIndices;
-	blockIndices.decodeAllFast(decodedIndices);
+	blockIndices.decodeAll(decodedIndices);
 
-	for (size_t i = 0; i < blockCache.size(); ++i) {
+	for (size_t i = 0; i < blockTypeVector.size(); ++i) {
 		uint32_t paletteIndex = decodedIndices[i];
-		blockCache[i] = palette[paletteIndex];
+		blockTypeVector[i] = palette[paletteIndex];
 	}
 
 	for (int x = 0; x < WIDTH; ++x) {
 		for (int y = 0; y < HEIGHT; ++y) {
 			for (int z = 0; z < DEPTH; ++z) {
-				BlockType block = blockCache[x + WIDTH * (z + DEPTH * y)];
+				BlockType block = blockTypeVector[x + WIDTH * (z + DEPTH * y)];
 				if (block == BlockType::AIR) continue;
 
 				bool exposed = false;
@@ -308,32 +308,32 @@ void Chunk::updateVisibleBlocks() {
 				// -X
 				exposed |= (x == 0)
 					? (adjacentChunks[WEST] == nullptr || adjacentChunks[WEST]->getBlock(WIDTH - 1, y, z) == BlockType::AIR)
-					: (blockCache[(x - 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR);
+					: (blockTypeVector[(x - 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR);
 
 				// +X
 				exposed |= (x == WIDTH - 1)
 					? (adjacentChunks[EAST] == nullptr || adjacentChunks[EAST]->getBlock(0, y, z) == BlockType::AIR)
-					: (blockCache[(x + 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR);
+					: (blockTypeVector[(x + 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR);
 
 				// -Y (bottom)
 				exposed |= (y == 0)
 					? true
-					: (blockCache[x + WIDTH * (z + DEPTH * (y - 1))] == BlockType::AIR);
+					: (blockTypeVector[x + WIDTH * (z + DEPTH * (y - 1))] == BlockType::AIR);
 
 				// +Y (top)
 				exposed |= (y == HEIGHT - 1)
 					? true
-					: (blockCache[x + WIDTH * (z + DEPTH * (y + 1))] == BlockType::AIR);
+					: (blockTypeVector[x + WIDTH * (z + DEPTH * (y + 1))] == BlockType::AIR);
 
 				// -Z
 				exposed |= (z == 0)
 					? (adjacentChunks[SOUTH] == nullptr || adjacentChunks[SOUTH]->getBlock(x, y, DEPTH - 1) == BlockType::AIR)
-					: (blockCache[x + WIDTH * ((z - 1) + DEPTH * y)] == BlockType::AIR);
+					: (blockTypeVector[x + WIDTH * ((z - 1) + DEPTH * y)] == BlockType::AIR);
 
 				// +Z
 				exposed |= (z == DEPTH - 1)
 					? (adjacentChunks[NORTH] == nullptr || adjacentChunks[NORTH]->getBlock(x, y, 0) == BlockType::AIR)
-					: (blockCache[x + WIDTH * ((z + 1) + DEPTH * y)] == BlockType::AIR);
+					: (blockTypeVector[x + WIDTH * ((z + 1) + DEPTH * y)] == BlockType::AIR);
 
 				if (exposed) {
 					visibleBlocks.emplace_back(x, y, z);
@@ -363,13 +363,13 @@ void Chunk::buildMesh() {
 		int z = block.z;
 
 		int idx = x + WIDTH * (z + DEPTH * y);
-		if (blockCache[idx] == BlockType::AIR) continue;
+		if (blockTypeVector[idx] == BlockType::AIR) continue;
 
 		// FRONT (+Z)
 		if (z == DEPTH - 1) {
 			if (!adjacentChunks[NORTH] || adjacentChunks[NORTH]->getBlock(x, y, 0) == BlockType::AIR)
 				addFace(x, y, z, 0);
-		} else if (blockCache[x + WIDTH * ((z + 1) + DEPTH * y)] == BlockType::AIR) {
+		} else if (blockTypeVector[x + WIDTH * ((z + 1) + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 0);
 		}
 
@@ -377,17 +377,17 @@ void Chunk::buildMesh() {
 		if (z == 0) {
 			if (!adjacentChunks[SOUTH] || adjacentChunks[SOUTH]->getBlock(x, y, DEPTH - 1) == BlockType::AIR)
 				addFace(x, y, z, 1);
-		} else if (blockCache[x + WIDTH * ((z - 1) + DEPTH * y)] == BlockType::AIR) {
+		} else if (blockTypeVector[x + WIDTH * ((z - 1) + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 1);
 		}
 
 		// TOP (+Y)
-		if (y == HEIGHT - 1 || blockCache[x + WIDTH * (z + DEPTH * (y + 1))] == BlockType::AIR) {
+		if (y == HEIGHT - 1 || blockTypeVector[x + WIDTH * (z + DEPTH * (y + 1))] == BlockType::AIR) {
 			addFace(x, y, z, 2);
 		}
 
 		// BOTTOM (-Y)
-		if (y == 0 || blockCache[x + WIDTH * (z + DEPTH * (y - 1))] == BlockType::AIR) {
+		if (y == 0 || blockTypeVector[x + WIDTH * (z + DEPTH * (y - 1))] == BlockType::AIR) {
 			addFace(x, y, z, 3);
 		}
 
@@ -395,7 +395,7 @@ void Chunk::buildMesh() {
 		if (x == WIDTH - 1) {
 			if (!adjacentChunks[EAST] || adjacentChunks[EAST]->getBlock(0, y, z) == BlockType::AIR)
 				addFace(x, y, z, 4);
-		} else if (blockCache[(x + 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR) {
+		} else if (blockTypeVector[(x + 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 4);
 		}
 
@@ -403,7 +403,7 @@ void Chunk::buildMesh() {
 		if (x == 0) {
 			if (!adjacentChunks[WEST] || adjacentChunks[WEST]->getBlock(WIDTH - 1, y, z) == BlockType::AIR)
 				addFace(x, y, z, 5);
-		} else if (blockCache[(x - 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR) {
+		} else if (blockTypeVector[(x - 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 5);
 		}
 	}
@@ -431,10 +431,15 @@ void Chunk::buildMesh() {
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void *>(5 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
+	meshVerticesSize = meshVertices.size();
+	meshVertices.clear();
+	meshVertices.shrink_to_fit(); // optional
+	blockTypeVector.clear();
+	blockTypeVector.shrink_to_fit();
 	visibleBlocks.clear();
-	visibleBlocks.resize(0);
-	// blockCache.clear();
-	// blockCache.resize(0);
+	visibleBlocks.shrink_to_fit();
+	visibleBlocksSet.clear();
+	visibleBlocksSet.rehash(0);
 }
 
 void Chunk::addFace(int x, int y, int z, int face) {
@@ -519,5 +524,5 @@ void Chunk::updateChunk()
 void Chunk::draw(const Shader* shaderProgram) const {
     shaderProgram->use();
     glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, meshVertices.size() / 3);
+    glDrawArrays(GL_TRIANGLES, 0, meshVerticesSize / 3);
 }

@@ -90,13 +90,15 @@ private:
 	std::unordered_map<BlockType, uint32_t> paletteMap; // BlockType -> Index
     BitPackedArray blockIndices;
 
-	std::vector<BlockType> blockCache;	// unpacked block indices
+	std::vector<BlockType> blockTypeVector;	// unpacked block indices
+	// std::vector<glm::ivec3> blocks; //vector of all blocks. Only useful for chunk generation for performance. Thrown away because of RAM
     std::vector<glm::ivec3> visibleBlocks; // List of visible blocks for rendering
 	std::unordered_set<glm::ivec3, IVec3Hash> visibleBlocksSet; //copy of visibly blocks for 0(1) Lookup
 	
     int originX; // X coordinate of the chunck origin
     int originZ; // Z coordinate of the chunck origin
     GLuint VAO = 0, VBO = 0;
+	uint meshVerticesSize;
     std::vector<float> meshVertices; // Vertices for the mesh
 
     void addFace(int x, int y, int z, int face); // Add a face to the mesh vertices
