@@ -41,6 +41,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(stb)
 
+# imgui
+FetchContent_Declare(
+  imgui
+  GIT_REPOSITORY https://github.com/ocornut/imgui.git
+  GIT_TAG master
+)
+FetchContent_MakeAvailable(imgui)
+
 file(GLOB SRC "src/*.cpp")
 
 if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
@@ -54,7 +62,7 @@ endif()
 # ---------------------------------------------------------------------------
 # ImGui integration
 # ---------------------------------------------------------------------------
-set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui)
+set(IMGUI_DIR   ${imgui_SOURCE_DIR})
 
 set(IMGUI_SOURCES
         ${IMGUI_DIR}/imgui.cpp
@@ -110,6 +118,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
   ${fastnoise_SOURCE_DIR}/Cpp
   glad/include
   ${stb_SOURCE_DIR}
+  ${imgui_SOURCE_DIR}
 )
 
 find_package(OpenGL REQUIRED)
