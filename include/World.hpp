@@ -10,6 +10,7 @@
 #include <cmath>
 #include <algorithm>
 #include <unordered_set>
+#include <memory>
 
 #include <future>
 
@@ -27,7 +28,7 @@ public:
     World();
     ~World();
 
-	std::vector<Chunk*> getRenderedChunks();
+	std::vector<std::weak_ptr<Chunk>> getRenderedChunks();
 
     void updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cameraDir);
     void render(const Shader* shaderProgram) const;
@@ -49,15 +50,15 @@ public:
     void setMaxConcurrentGeneration(std::size_t n) { maxConcurrentGeneration = std::max<std::size_t>(1, n); }
 
 	void globalCoordsToLocalCoords(int &x, int &y, int &z, int globalX, int globalY, int globalZ, int &chunkX, int &chunkZ);
-    Chunk* getChunk(int chunkX, int chunkZ);
+    std::shared_ptr<Chunk> getChunk(int chunkX, int chunkZ);
 	BlockType getBlockWorld(glm::ivec3 globalCoords); //unused for now
 	void setBlockWorld(glm::ivec3 globalCoords, BlockType type);
 	bool isBlockVisibleWorld(glm::ivec3 globalCoords);
 
 private:
     using ChunkKey = std::pair<int, int>; // (chunkX, chunkZ)
-    std::unordered_map<ChunkPos, Chunk*> chunks;
-    std::vector<Chunk*> renderedChunks;
+    std::unordered_map<ChunkPos, std::shared_ptr<Chunk>> chunks;
+    std::vector<std::weak_ptr<Chunk>> renderedChunks;
     std::vector<std::pair<int, int>> chunksToGenerate;
 
     // Set of chunks currently being generated asynchronously.  We use
@@ -81,7 +82,7 @@ private:
     // value can be tuned based on the number of available CPU cores.
     std::size_t maxConcurrentGeneration = 1;
 
-    void linkNeighbors(int chunkX, int chunkZ, Chunk* chunk);
+    void linkNeighbors(int chunkX, int chunkZ, std::shared_ptr<Chunk> chunk);
     static ChunkKey toKey(int chunkX, int chunkZ);
 };
 

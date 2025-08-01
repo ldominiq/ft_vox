@@ -54,10 +54,15 @@ bool Chunk::needsUpdate() const {
 }
 
 bool Chunk::hasAllAdjacentChunkLoaded() const {
-    return adjacentChunks[NORTH] && adjacentChunks[EAST] && adjacentChunks[WEST] && adjacentChunks[SOUTH];
+    for (const auto& adj : adjacentChunks) {
+        if (adj.expired()) {
+            return false;
+        }
+    }
+    return true;
 }
 
-void Chunk::setAdjacentChunks(const int direction, Chunk *chunk){
+void Chunk::setAdjacentChunks(const int direction, std::shared_ptr<Chunk> chunk){
     adjacentChunks[direction] = chunk;
 }
 
@@ -277,10 +282,26 @@ void Chunk::setBlock(int x, int y, int z, BlockType type) {
 		updateChunk();
 
 	//update possible neighbour
-	if (x == 0 && adjacentChunks[WEST])	adjacentChunks[WEST]->updateChunk();
-	if (x == WIDTH - 1 && adjacentChunks[EAST]) adjacentChunks[EAST]->updateChunk();
-	if (z == 0 && adjacentChunks[SOUTH]) adjacentChunks[SOUTH]->updateChunk();
-	if (z == DEPTH - 1 && adjacentChunks[NORTH]) adjacentChunks[NORTH]->updateChunk();
+	if (x == 0) {
+		if (auto westChunk = adjacentChunks[WEST].lock()) {
+			westChunk->updateChunk();
+		}
+	}
+	if (x == WIDTH - 1) {
+		if (auto eastChunk = adjacentChunks[EAST].lock()) {
+			eastChunk->updateChunk();
+		}
+	}
+	if (z == 0) {
+		if (auto southChunk = adjacentChunks[SOUTH].lock()) {
+			southChunk->updateChunk();
+		}
+	}
+	if (z == DEPTH - 1) {
+		if (auto northChunk = adjacentChunks[NORTH].lock()) {
+			northChunk->updateChunk();
+		}
+	}
 }
 
 void Chunk::updateVisibleBlocks() {
@@ -305,14 +326,20 @@ void Chunk::updateVisibleBlocks() {
 
 				bool exposed = false;
 
-				// -X
+				// -X (WEST)
 				exposed |= (x == 0)
-					? (adjacentChunks[WEST] == nullptr || adjacentChunks[WEST]->getBlock(WIDTH - 1, y, z) == BlockType::AIR)
+					? ([&]() {
+						auto westChunk = adjacentChunks[WEST].lock();
+						return !westChunk || westChunk->getBlock(WIDTH - 1, y, z) == BlockType::AIR;
+					})()
 					: (blockTypeVector[(x - 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR);
 
-				// +X
+				// +X (EAST)
 				exposed |= (x == WIDTH - 1)
-					? (adjacentChunks[EAST] == nullptr || adjacentChunks[EAST]->getBlock(0, y, z) == BlockType::AIR)
+					? ([&]() {
+						auto eastChunk = adjacentChunks[EAST].lock();
+						return !eastChunk || eastChunk->getBlock(0, y, z) == BlockType::AIR;
+					})()
 					: (blockTypeVector[(x + 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR);
 
 				// -Y (bottom)
@@ -325,15 +352,22 @@ void Chunk::updateVisibleBlocks() {
 					? true
 					: (blockTypeVector[x + WIDTH * (z + DEPTH * (y + 1))] == BlockType::AIR);
 
-				// -Z
+				// -Z (SOUTH)
 				exposed |= (z == 0)
-					? (adjacentChunks[SOUTH] == nullptr || adjacentChunks[SOUTH]->getBlock(x, y, DEPTH - 1) == BlockType::AIR)
+					? ([&]() {
+						auto southChunk = adjacentChunks[SOUTH].lock();
+						return !southChunk || southChunk->getBlock(x, y, DEPTH - 1) == BlockType::AIR;
+					})()
 					: (blockTypeVector[x + WIDTH * ((z - 1) + DEPTH * y)] == BlockType::AIR);
 
-				// +Z
+				// +Z (NORTH)
 				exposed |= (z == DEPTH - 1)
-					? (adjacentChunks[NORTH] == nullptr || adjacentChunks[NORTH]->getBlock(x, y, 0) == BlockType::AIR)
+					? ([&]() {
+						auto northChunk = adjacentChunks[NORTH].lock();
+						return !northChunk || northChunk->getBlock(x, y, 0) == BlockType::AIR;
+					})()
 					: (blockTypeVector[x + WIDTH * ((z + 1) + DEPTH * y)] == BlockType::AIR);
+
 
 				if (exposed) {
 					visibleBlocks.emplace_back(x, y, z);
@@ -362,7 +396,8 @@ void Chunk::buildMesh() {
 
 		// FRONT (+Z)
 		if (z == DEPTH - 1) {
-			if (!adjacentChunks[NORTH] || adjacentChunks[NORTH]->getBlock(x, y, 0) == BlockType::AIR)
+			auto northChunk = adjacentChunks[NORTH].lock();
+			if (!northChunk || northChunk->getBlock(x, y, 0) == BlockType::AIR)
 				addFace(x, y, z, 0);
 		} else if (blockTypeVector[x + WIDTH * ((z + 1) + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 0);
@@ -370,7 +405,8 @@ void Chunk::buildMesh() {
 
 		// BACK (-Z)
 		if (z == 0) {
-			if (!adjacentChunks[SOUTH] || adjacentChunks[SOUTH]->getBlock(x, y, DEPTH - 1) == BlockType::AIR)
+			auto southChunk = adjacentChunks[SOUTH].lock();
+			if (!southChunk || southChunk->getBlock(x, y, DEPTH - 1) == BlockType::AIR)
 				addFace(x, y, z, 1);
 		} else if (blockTypeVector[x + WIDTH * ((z - 1) + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 1);
@@ -388,7 +424,8 @@ void Chunk::buildMesh() {
 
 		// RIGHT (+X)
 		if (x == WIDTH - 1) {
-			if (!adjacentChunks[EAST] || adjacentChunks[EAST]->getBlock(0, y, z) == BlockType::AIR)
+			auto eastChunk = adjacentChunks[EAST].lock();
+			if (!eastChunk || eastChunk->getBlock(0, y, z) == BlockType::AIR)
 				addFace(x, y, z, 4);
 		} else if (blockTypeVector[(x + 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 4);
@@ -396,11 +433,13 @@ void Chunk::buildMesh() {
 
 		// LEFT (-X)
 		if (x == 0) {
-			if (!adjacentChunks[WEST] || adjacentChunks[WEST]->getBlock(WIDTH - 1, y, z) == BlockType::AIR)
+			auto westChunk = adjacentChunks[WEST].lock();
+			if (!westChunk || westChunk->getBlock(WIDTH - 1, y, z) == BlockType::AIR)
 				addFace(x, y, z, 5);
 		} else if (blockTypeVector[(x - 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR) {
 			addFace(x, y, z, 5);
 		}
+
 	}
 
 

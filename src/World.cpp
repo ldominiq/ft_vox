@@ -8,22 +8,27 @@ World::World() {
 }
 
 World::~World() {
-    for (const auto& pair : chunks) {
-        delete pair.second;
-    }
 }
 
 World::ChunkKey World::toKey(int chunkX, int chunkZ) {
     return std::make_pair(chunkX, chunkZ);
 }
 
-Chunk* World::getChunk(const int chunkX, const int chunkZ) {
+// Chunk* World::getChunk(const int chunkX, const int chunkZ) {
+//     const ChunkKey key = toKey(chunkX, chunkZ);
+//     if (chunks.count(key) == 0) return nullptr;
+//     return chunks[key].get();
+// }
+
+std::shared_ptr<Chunk> World::getChunk(int chunkX, int chunkZ) {
     const ChunkKey key = toKey(chunkX, chunkZ);
-    if (chunks.count(key) == 0) return nullptr;
-    return chunks[key];
+    auto it = chunks.find(key);
+    if (it == chunks.end())
+        return nullptr;
+    return it->second;
 }
 
-std::vector<Chunk*> World::getRenderedChunks()
+std::vector<std::weak_ptr<Chunk>> World::getRenderedChunks()
 {
 	return renderedChunks;
 }
@@ -53,7 +58,7 @@ BlockType World::getBlockWorld(glm::ivec3 globalCoords)
 	if (it == chunks.end()) {
 		return BlockType::AIR;
 	}
-	Chunk* currChunk = it->second;
+	Chunk* currChunk = it->second.get();
 	return currChunk->getBlock(x, y, z);
 }
 
@@ -67,7 +72,7 @@ void World::setBlockWorld(glm::ivec3 globalCoords, BlockType type)
 	if (it == chunks.end())
 		return ;
 
-	Chunk* currChunk = it->second;
+	Chunk* currChunk = it->second.get();
 	return currChunk->setBlock(x, y, z, type);
 }
 
@@ -81,12 +86,12 @@ bool World::isBlockVisibleWorld(glm::ivec3 globalCoords)
 	if (it == chunks.end()) {
 		return false;
 	}
-	Chunk* currChunk = it->second;
+	Chunk* currChunk = it->second.get();
 
 	return currChunk->isBlockVisible(glm::vec3(x, y ,z));
 }
 
-void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
+void World::linkNeighbors(int chunkX, int chunkZ, std::shared_ptr<Chunk> chunk) {
     if (!chunk)
 		return ;
 
@@ -98,7 +103,7 @@ void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
         int nx = chunkX + dirX[dir];
         int nz = chunkZ + dirZ[dir];
 
-        Chunk* neighbor = getChunk(nx, nz);
+        std::shared_ptr<Chunk> neighbor = getChunk(nx, nz);
 
         chunk->setAdjacentChunks(static_cast<Direction>(dir), neighbor);
         if (neighbor) {
@@ -145,7 +150,6 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
         // Delete the chunk and remove from map
         auto it = chunks.find(key);
         if (it != chunks.end()) {
-            delete it->second;
             chunks.erase(it);
         }
     }
@@ -189,7 +193,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
         const int cx = currentChunkX + dx;
         const int cz = currentChunkZ + dz;
         ChunkKey key = toKey(cx, cz);
-        Chunk* chunk = getChunk(cx, cz);
+        std::shared_ptr<Chunk> chunk = getChunk(cx, cz);
 
         if (!chunk) {
             if (generatingChunks.find(key) == generatingChunks.end()) {
@@ -214,42 +218,44 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
     // zero-duration wait.  When a future is ready we retrieve the chunk and
     // insert it into the world, link neighbours, propagate light and update
     // chunks.
-    std::size_t processed = 0;
-    for (auto it = generationFutures.begin(); it != generationFutures.end() && processed < maxChunkProcessPerFrame; ) {
-        std::future<std::pair<ChunkKey, Chunk*>>& fut = *it;
-        if (fut.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            auto result = fut.get();
-            ChunkKey key = result.first;
-            Chunk* newChunk = result.second;
-            // Remove from generating set since the task is complete
-            generatingChunks.erase(key);
-            // Determine if the chunk is still within the load radius.  If it
-            // is far away (beyond unloadRadius) we discard it to avoid
-            // accumulating memory for chunks that are no longer needed.
-            int cx = key.first;
-            int cz = key.second;
-            int dxChunk = cx - currentChunkX;
-            int dzChunk = cz - currentChunkZ;
-            if (dxChunk * dxChunk + dzChunk * dzChunk > unloadRadius * unloadRadius) {
-                // Outside the interest radius: delete and skip insertion
-                delete newChunk;
-            } else {
-                // Insert into the map
-                chunks[key] = newChunk;
-                // Link neighbours and propagate lighting
-                int chunkX = cx;
-                int chunkZ = cz;
-                linkNeighbors(chunkX, chunkZ, newChunk);
-                newChunk->updateChunk();
-            }
-            // Remove this future from the list regardless of whether we
-            // inserted the chunk
-            it = generationFutures.erase(it);
-            processed++;
-        } else {
-            ++it;
-        }
-    }
+	std::size_t processed = 0;
+	for (auto it = generationFutures.begin(); it != generationFutures.end() && processed < maxChunkProcessPerFrame; ) {
+		std::future<std::pair<ChunkKey, Chunk*>>& fut = *it;
+		
+		if (fut.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+			auto result = fut.get();
+			ChunkKey key = result.first;
+			std::shared_ptr<Chunk> newChunk = std::shared_ptr<Chunk>(result.second);
+
+			// Remove from generating set since the task is complete
+			generatingChunks.erase(key);
+
+			// Check distance from current player chunk
+			int cx = key.first;
+			int cz = key.second;
+			int dxChunk = cx - currentChunkX;
+			int dzChunk = cz - currentChunkZ;
+
+			if (dxChunk * dxChunk + dzChunk * dzChunk > unloadRadius * unloadRadius) {
+				// Outside interest radius: let shared_ptr go out of scope → auto free
+				newChunk.reset(); 
+			} else {
+				// Insert into the map
+				chunks[key] = newChunk;
+
+				// Link neighbours and propagate lighting
+				linkNeighbors(cx, cz, newChunk); 
+				newChunk->updateChunk();
+			}
+
+			// Remove this future from the list
+			it = generationFutures.erase(it);
+			processed++;
+		} else {
+			++it;
+		}
+	}
+
 
     // Rebuild the renderedChunks list again after newly generated chunks may
     // have been inserted.  This ensures that chunks created this frame are
@@ -263,7 +269,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
             }
             const int cx = currentChunkX + dx;
             const int cz = currentChunkZ + dz;
-            Chunk* chunk = getChunk(cx, cz);
+            std::shared_ptr<Chunk> chunk = getChunk(cx, cz);
             if (chunk) {
                 renderedChunks.push_back(chunk);
             }
@@ -282,7 +288,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
 		const int dirZ[] = { 1, -1, 0, 0 };
 
 		for (int dir = 0; dir < 4; ++dir) {
-			Chunk* neighbor = getChunk(chunkX + dirX[dir], chunkZ + dirZ[dir]);
+			std::shared_ptr<Chunk> neighbor = getChunk(chunkX + dirX[dir], chunkZ + dirZ[dir]);
 			if (neighbor && neighbor->needsUpdate() && neighbor->hasAllAdjacentChunkLoaded()) {
 				neighbor->updateChunk();
 			}
@@ -292,10 +298,12 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
 
 void World::render(const Shader* shaderProgram) const {
     int count = 0;
-    for (auto& pair : renderedChunks) {
-        count++;
-        pair->draw(shaderProgram);
-    }
+	for (auto& weakChunk : renderedChunks) {
+		if (auto chunk = weakChunk.lock()) {
+			chunk->draw(shaderProgram);
+			count++;
+		}
+	}
 }
 
 // Return the number of chunks currently in the rendered list.

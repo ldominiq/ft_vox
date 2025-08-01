@@ -16,6 +16,7 @@
 #include <random>
 #include <unordered_set>
 #include <queue>
+#include <memory>
 
 #include "Block.hpp"
 #include "BitPackedArray.hpp"
@@ -74,7 +75,7 @@ public:
 
     void draw(const Shader* shaderProgram) const; // Draw the chunk using the given shader program
 
-	void setAdjacentChunks(int direction, Chunk *chunk);
+	void setAdjacentChunks(int direction, std::shared_ptr<Chunk> chunk);
 	bool hasAllAdjacentChunkLoaded() const;
 
 	bool needsUpdate() const;
@@ -83,7 +84,7 @@ public:
 private:
 
 	bool m_needsUpdate;
-	Chunk *adjacentChunks[4] = {};
+	std::weak_ptr<Chunk> adjacentChunks[4] = {};
 
 	std::vector<BlockType> palette; // Index -> BlockType
 	std::unordered_map<BlockType, uint32_t> paletteMap; // BlockType -> Index

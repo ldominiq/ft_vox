@@ -11,7 +11,7 @@ class Camera {
 	GLuint wireframeVAO, wireframeVBO, wireframeEBO;
 
 	void initWireframeCube();
-	Shader* blockWireframeShader = nullptr;
+	std::unique_ptr<Shader> blockWireframeShader = nullptr;
 
 public:
     glm::vec3 Position;
@@ -27,7 +27,6 @@ public:
     explicit Camera(glm::vec3 position);
 
     glm::mat4 getViewMatrix() const;
-	Shader* getBlockWireframeShader();
     void processKeyboard(int direction, float deltaTime);
     void processMouseMovement(float xoffset, float yoffset);
     void updateCameraVectors();

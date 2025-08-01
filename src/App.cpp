@@ -16,7 +16,7 @@ GLFWwindow* window;
 static unsigned int loadTexture(const char* path);
 
 App::App(): VAO(0), VBO(0), EBO(0), shaderProgram(0), texture(0), camera(nullptr), monitor(nullptr), mode(nullptr),
-            chunk(nullptr),
+            // chunk(nullptr),
             world(nullptr),
             skybox(nullptr),
             textureShader(nullptr),
@@ -57,9 +57,9 @@ void App::init() {
         "assets/skybox/back.bmp"    // -Z
     };
 
-    skybox = new Skybox(faces);
+	skybox = std::make_unique<Skybox>(faces);
 
-    world = new World();
+    world = std::make_unique<World>();
     
     glEnable(GL_DEPTH_TEST);
     
@@ -71,7 +71,7 @@ void App::init() {
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
     // Mouse movement event handling
-    camera = new Camera(glm::vec3(-3.0f, 32.0f, 0.0f));
+    camera = std::make_unique<Camera>(glm::vec3(-3.0f, 32.0f, 0.0f));
     glfwSetWindowUserPointer(window, this);
     glfwSetCursorPosCallback(window, [](GLFWwindow* w, const double xpos, const double ypos) {
         static App* app = static_cast<App*>(glfwGetWindowUserPointer(w));
@@ -115,8 +115,8 @@ void App::init() {
 void App::loadResources() {
     // Load shaders and textures
 
-    textureShader = new Shader("shaders/simple.vert", "shaders/simple.frag");
-    gradientShader = new Shader("shaders/gradient.vert", "shaders/gradient.frag");
+    textureShader = std::make_shared<Shader>("shaders/simple.vert", "shaders/simple.frag");
+    gradientShader = std::make_shared<Shader>("shaders/gradient.vert", "shaders/gradient.frag");
     texture = loadTexture("assets/textures/spritesheet3.png");
 
     activeShader = textureShader;
@@ -191,9 +191,9 @@ void App::render() {
         activeShader->setVec3("ambientColor", ambientColor);
 
         world->updateVisibleChunks(camera->Position, camera->Front);
-        world->render(activeShader);
+        world->render(activeShader.get());
         skybox->draw(camera->getViewMatrix(), projection);
-        camera->drawWireframeSelectedBlockFace(world, view, projection);
+        camera->drawWireframeSelectedBlockFace(world.get(), view, projection);
 
         // Build the ImGui UI.  We always draw the debug overlay.  When
         // uiInteractive is false we disable input on the window, allowing
@@ -357,8 +357,11 @@ void App::processInput() {
 	//reload chunk. F3 + A;
 	if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS &&
     	glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-		for (auto chunk : world->getRenderedChunks())
-			chunk->updateChunk();
+		for (auto chunkPtr : world->getRenderedChunks())
+		{
+			if (auto chunk = chunkPtr.lock())
+				chunk->updateChunk();
+		}
 		return;
 	}
 
@@ -452,7 +455,7 @@ void App::processInput() {
     if (!capturingMouse) {
         int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
         if (state == GLFW_PRESS && !leftMousePressedLastFrame)
-            camera->removeTargettedBlock(world);
+            camera->removeTargettedBlock(world.get());
         leftMousePressedLastFrame = (state == GLFW_PRESS);
     }
 

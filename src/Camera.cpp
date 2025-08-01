@@ -148,7 +148,7 @@ void Camera::initWireframeCube() {
 
     glBindVertexArray(0); // Unbind VAO
 
-	blockWireframeShader = new Shader("shaders/simpleWireframe.vert", "shaders/simpleWireframe.frag");
+	blockWireframeShader = std::make_unique<Shader>("shaders/simpleWireframe.vert", "shaders/simpleWireframe.frag");
 }
 
 void Camera::drawWireframeSelectedBlockFace(World *world, glm::mat4 view, glm::mat4 projection) {
@@ -167,9 +167,4 @@ void Camera::drawWireframeSelectedBlockFace(World *world, glm::mat4 view, glm::m
     glBindVertexArray(wireframeVAO);
     glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, nullptr);
 	glBindVertexArray(0);
-}
-
-Shader* Camera::getBlockWireframeShader()
-{
-	return blockWireframeShader;
 }
