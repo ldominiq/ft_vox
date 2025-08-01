@@ -82,6 +82,7 @@ bool World::isBlockVisibleWorld(glm::ivec3 globalCoords)
 		return false;
 	}
 	Chunk* currChunk = it->second;
+
 	return currChunk->isBlockVisible(glm::vec3(x, y ,z));
 }
 

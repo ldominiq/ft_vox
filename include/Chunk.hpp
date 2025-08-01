@@ -70,8 +70,6 @@ public:
     BlockType getBlock(int x, int y, int z) const;
 	void setBlock(int x, int y, int z, BlockType block);
 
-    const std::vector<glm::ivec3>& getVisibleBlocks() const;
-
 	bool isBlockVisible(glm::ivec3 blockPos);
 
     void draw(const Shader* shaderProgram) const; // Draw the chunk using the given shader program

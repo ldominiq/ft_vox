@@ -342,16 +342,11 @@ void Chunk::updateVisibleBlocks() {
 			}
 		}
 	}
-
 }
 
 bool Chunk::isBlockVisible(glm::ivec3 blockPos)
 {
 	return visibleBlocksSet.count(blockPos) > 0;
-}
-
-const std::vector<glm::ivec3>& Chunk::getVisibleBlocks() const {
-    return visibleBlocks;
 }
 
 void Chunk::buildMesh() {
@@ -446,8 +441,8 @@ void Chunk::buildMesh() {
 	blockTypeVector.shrink_to_fit();
 	visibleBlocks.clear();
 	visibleBlocks.shrink_to_fit();
-	visibleBlocksSet.clear();
-	visibleBlocksSet.rehash(0);
+	// visibleBlocksSet.clear();
+	// visibleBlocksSet.rehash(0);
 }
 
 void Chunk::addFace(int x, int y, int z, int face) {
