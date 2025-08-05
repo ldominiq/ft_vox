@@ -41,9 +41,9 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
 }
 
 
-Chunk::Chunk(const int chunkX, const int chunkZ, const bool doGenerate) 
+Chunk::Chunk(const int chunkX, const int chunkZ, int seed, const bool doGenerate) 
     : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH),
-      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4)  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
+      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4), SEED(seed)  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
 {
 	if (doGenerate)
     	generate();
@@ -112,14 +112,23 @@ void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
 
 void Chunk::generate() {
     FastNoiseLite biomeNoise;
+    //TODO: add SEED to imgui
+    biomeNoise.SetSeed(SEED);
     biomeNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
     biomeNoise.SetFrequency(0.001f); // low = large biomes
 
     FastNoiseLite baseNoise;
-    baseNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    baseNoise.SetFrequency(0.01f); // standard terrain noise
+    baseNoise.SetSeed(SEED + 1);
+    baseNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    baseNoise.SetFrequency(0.02f); // standard terrain noise
+
+    FastNoiseLite detailNoise;
+    detailNoise.SetSeed(SEED + 2);
+    detailNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    detailNoise.SetFrequency(0.1f);
 
     FastNoiseLite warp;
+    warp.SetSeed(SEED + 3);
     warp.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
     warp.SetFrequency(0.02f);
 
@@ -128,93 +137,55 @@ void Chunk::generate() {
     wormNoise.SetFrequency(0.1f);
 
 	BlockStorage blocks;
-
-    // ========== Base terrain ==========
+    
+    //                                  {scaleX, scaleZ, amplitude, offset, blendMin, blendMax, topBlock,         useBaseNoise}
+    std::vector<BiomeParams> biomes = {
+                                        {2.0f,   2.0f,   3.0f,      15.0f,  0.00f,    0.30f,    BlockType::SAND,  true},
+                                        {1.2f,   1.2f,   4.0f,      25.0f,  0.20f,    0.50f,    BlockType::GRASS, true},
+                                        {2.0f,   2.0f,   8.0f,      40.0f,  0.40f,    0.70f,    BlockType::DIRT,  false},
+                                        {0.8f,   0.8f,   35.0f,     80.0f,  0.60f,    0.90f,    BlockType::STONE, false},
+                                        {0.6f,   0.6f,   25.0f,     120.0f, 0.85f,    1.00f,    BlockType::SNOW,  false}
+                                    };
+    
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
-            // World-space position
-            const int worldX = originX + x;
-            const int worldZ = originZ + z;
+            float wx = originX + x;
+            float wz = originZ + z;
 
-            float xf = static_cast<float>(worldX);
-            float zf = static_cast<float>(worldZ);
-
-            // Domain warp to add terrain folds
-            float wx = xf + warp.GetNoise(xf, zf) * 20.0f;
-            float wz = zf + warp.GetNoise(zf, xf) * 20.0f;
+            float biomeBlendFactor = biomeNoise.GetNoise(wx, wz) * 0.5f + 0.5f;
 
             
-            // Get biome value and normalize to [0,1]
-            float biomeBlendFactor = biomeNoise.GetNoise(xf, zf) * 0.5f + 0.5f;
+            std::vector<float> heights;
+            std::vector<float> weights;
+            heights.reserve(biomes.size());
+            weights.reserve(biomes.size());
 
-            // Determine biome type
-            BiomeType biome;
-            if (biomeBlendFactor < 0.2f)       biome = BiomeType::DESERT;
-            else if (biomeBlendFactor < 0.4f)  biome = BiomeType::PLAINS;
-            else if (biomeBlendFactor < 0.6f)  biome = BiomeType::FOREST;
-            else if (biomeBlendFactor < 0.8f)  biome = BiomeType::MOUNTAIN;
-            else                biome = BiomeType::SNOW;
-
-            float plainsH   = baseNoise.GetNoise(wx, wz) * 6.0f + 10.0f;
-            float forestH   = baseNoise.GetNoise(wx, wz) * 10.0f + 44.0f;
-            float desertH   = baseNoise.GetNoise(wx, wz) * 5.0f + 36.0f;
-            float mountainH = baseNoise.GetNoise(wx * 0.6f, wz * 0.6f) * 28.0f + 100.0f;
-            float snowH     = baseNoise.GetNoise(wx * 0.5f, wz * 0.5f) * 18.0f + 110.0f;
-
-
-            // Terrain height by biome
-            float heightF = 0.0f;
-
-            // b in [0, 1], we split into 4 blend zones
-            if (biomeBlendFactor < 0.25f) {
-                // desert → plains
-                float t = biomeBlendFactor / 0.25f;
-                heightF = glm::mix(desertH, plainsH, t);
-                biome = (t < 0.5f) ? BiomeType::DESERT : BiomeType::PLAINS;
-
-            } else if (biomeBlendFactor < 0.5f) {
-                // plains → forest
-                float t = (biomeBlendFactor - 0.25f) / 0.25f;
-                heightF = glm::mix(plainsH, forestH, t);
-                biome = (t < 0.5f) ? BiomeType::PLAINS : BiomeType::FOREST;
-
-            } else if (biomeBlendFactor < 0.75f) {
-                // forest → mountain
-                float t = (biomeBlendFactor - 0.5f) / 0.25f;
-                heightF = glm::mix(forestH, mountainH, t);
-                biome = (t < 0.5f) ? BiomeType::FOREST : BiomeType::MOUNTAIN;
-
-            } else {
-                // mountain → snow
-                float t = (biomeBlendFactor - 0.75f) / 0.25f;
-                heightF = glm::mix(mountainH, snowH, t);
-                biome = (t < 0.5f) ? BiomeType::MOUNTAIN : BiomeType::SNOW;
+            for (auto &bp : biomes) {
+                FastNoiseLite &noiseGenerator = bp.useBaseNoise ? baseNoise : detailNoise;
+                float noiseVal = noiseGenerator.GetNoise(wx * bp.scaleX, wz * bp.scaleZ);
+                heights.push_back(noiseVal * bp.amplitude + bp.offset);
+                weights.push_back(glm::smoothstep(bp.blendMin, bp.blendMax, biomeBlendFactor));
             }
 
-            int height = static_cast<int>(glm::clamp(heightF, 1.0f, (float)HEIGHT - 1));
+            float blendedHeight = 0.0f;
+            for (size_t i = 0; i < biomes.size(); ++i) {
+                blendedHeight += heights[i] * weights[i];
+            }
 
-            // Block layers based on biome
-			for (int y = 0; y < HEIGHT; ++y) {
-				BlockType block = BlockType::AIR;
+            int surfaceHeight = static_cast<int>(std::round(blendedHeight));
+            
 
-				if (y < height - 4) {
-					block = BlockType::STONE;
-				} else if (y < height - 1) {
-					block = (biome == BiomeType::DESERT) ? BlockType::SAND : BlockType::DIRT;
-				} else if (y < height) {
-					block = [&] {
-						switch (biome) {
-							case BiomeType::DESERT:    return BlockType::SAND;
-							case BiomeType::SNOW:      return BlockType::SNOW;
-							case BiomeType::MOUNTAIN:  return BlockType::STONE;
-							default:                   return BlockType::GRASS;
-						}
-					}();
-				}
-
-				blocks.at(x,y,z) = block;
-				// setBlock(x, y, z, block);
-			}
+            for (int y = 0; y < HEIGHT; ++y) {
+                if (y <= surfaceHeight) {
+                    if (y == surfaceHeight || y > surfaceHeight - 5) {
+                        blocks.at(x, y, z) = selectBlockType(y, surfaceHeight, biomeBlendFactor, biomes, weights, heights);
+                    } else {
+                        blocks.at(x, y, z) = BlockType::STONE;
+                    }
+                } else {
+                    blocks.at(x, y, z) = BlockType::AIR;
+                }
+            }
         }
     }
 
@@ -250,6 +221,32 @@ void Chunk::generate() {
     }
 
 	blockIndices.encodeAll(blocks.getData(), palette, paletteMap);
+}
+
+BlockType Chunk::selectBlockType(int y, int surfaceHeight, float blend,
+                                 const std::vector<BiomeParams>& biomes,
+                                 const std::vector<float>& weights,
+                                 const std::vector<float>& heights) {
+    if (y < surfaceHeight - 5)
+        return BlockType::STONE;
+    if (y < surfaceHeight)
+        return BlockType::DIRT;
+    if (y > surfaceHeight)
+        return BlockType::AIR;
+
+    // Compute contribution = weight * actual height
+    float maxContribution = -1.0f;
+    BlockType topBlock = BlockType::DIRT;
+
+    for (size_t i = 0; i < biomes.size(); ++i) {
+        float contribution = weights[i] * heights[i];
+        if (contribution > maxContribution) {
+            maxContribution = contribution;
+            topBlock = biomes[i].topBlock;
+        }
+    }
+
+    return topBlock;
 }
 
 

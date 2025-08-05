@@ -6,6 +6,9 @@
 
 World::World() {
 	std::filesystem::create_directories("region");
+    std::mt19937 rng(time(nullptr));
+    SEED = rng();
+    std::cout << "World seed: " << SEED << std::endl;
 }
 
 World::~World() {
@@ -176,7 +179,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
                 if (generationFutures.size() < maxConcurrentGeneration) {
                     generatingChunks.insert(key);
                     generationFutures.push_back(std::async(std::launch::async, [=]() {
-                        std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz);
+                        std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz, SEED);
                         return std::make_pair(key, newChunk);
                     }));
                 }

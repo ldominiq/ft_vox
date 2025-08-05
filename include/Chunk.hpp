@@ -4,6 +4,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/noise.hpp>
 
 #include <glad/glad.h>
 #include <cstdlib>
@@ -42,6 +43,22 @@ struct Worm {
 
 };
 
+// ==BIOME PARAMETERS==
+// scaleX/scaleZ = how stretched the biome is
+// amplitude = how high the terrain will be
+// offset = how much the terrain is offset from 0
+// blendMin/blendMax = how much the biome blends with the next one
+// topBlock = the block type at the top of the biome
+struct BiomeParams {
+    float scaleX, scaleZ;
+    float amplitude;
+    float offset;
+    float blendMin, blendMax;
+    BlockType topBlock;
+	bool useBaseNoise;
+	
+};
+
 enum Direction {
 	NORTH = 0,
 	SOUTH,
@@ -65,7 +82,7 @@ public:
 	static constexpr int DEPTH = 16; // Depth of the chunck in blocks
     static constexpr int BLOCK_COUNT = WIDTH * HEIGHT * DEPTH;
 
-    Chunk(const int chunkX, const int chunkZ, const bool doGenerate = true);
+    Chunk(const int chunkX, const int chunkZ, int seed, const bool doGenerate = true);
 	Chunk() = default;
     
     void carveWorm(Worm& worm, BlockStorage &blocks);
@@ -87,8 +104,10 @@ public:
 	void saveToStream(std::ostream& out) const;
 	void loadFromStream(std::istream& in);
 
-private:
+	BlockType selectBlockType(int y, int surfaceHeight, float blend, const std::vector<BiomeParams>& biomes, const std::vector<float>& weights, const std::vector<float>& heights);
 
+private:
+	int SEED;
 	bool m_needsUpdate = true;
 	std::weak_ptr<Chunk> adjacentChunks[4] = {};
 
@@ -104,7 +123,7 @@ private:
 
     void addFace(int x, int y, int z, int face); // Add a face to the mesh vertices
 
-	void buildMesh(); // Build the mesh for rendering
+	void buildMesh(); // Build the mesh for rendering	
 };
 
 class BlockStorage {

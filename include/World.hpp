@@ -71,6 +71,7 @@ public:
 	bool isBlockVisibleWorld(glm::ivec3 globalCoords);
 
 private:
+    int SEED = 1337; // Seed for the world generation, can be changed at runtime
 
     std::unordered_map<ChunkPos, std::shared_ptr<Chunk>> chunks;
     std::vector<std::weak_ptr<Chunk>> renderedChunks;
