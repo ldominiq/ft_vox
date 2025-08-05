@@ -9,7 +9,6 @@ enum class BlockType {
     STONE,
     SAND,
     SNOW
-
 };
 
 struct Voxel {

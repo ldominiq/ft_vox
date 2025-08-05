@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 #include <string>
+#include <memory>
 
 class Skybox {
 public:
@@ -18,7 +19,7 @@ public:
 private:
     GLuint skyboxVAO{}, skyboxVBO{};
     GLuint cubemapTexture;
-    Shader* shader;
+    std::unique_ptr<Shader> shader;
 
     static GLuint loadCubemap(const std::vector<std::string>& faces);
 };

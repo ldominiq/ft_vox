@@ -20,6 +20,7 @@
 #include <iostream>
 // glm for vector types used in lighting controls
 #include <glm/vec3.hpp>
+#include <memory>
 // #include <glm/glm.hpp>
 // #include <glm/gtc/matrix_transform.hpp>
 // #include <glm/gtc/type_ptr.hpp>
@@ -36,7 +37,7 @@
     X(TOGGLE_FULLSCREEN)	\
     X(TOGGLE_WIREFRAME)		\
     X(TOGGLE_SHADER)		\
-    X(CLOSE_WINDOW)
+    X(CLOSE_WINDOW)			\
 
 enum controls {
 #define X(name) name,
@@ -75,15 +76,15 @@ private:
     };
     DisplayMode displayMode = DisplayMode::Windowed;
 
-    Camera* camera;
-    GLFWmonitor* monitor;
+    std::unique_ptr<Camera> camera;
+	GLFWmonitor* monitor;
     const GLFWvidmode* mode;
-    Chunk* chunk;
-    World* world;
-    Skybox* skybox;
-    Shader* textureShader;
-    Shader* gradientShader;
-    Shader* activeShader;   // pointer to the currently active shader program
+
+    std::unique_ptr<World> world;
+    std::unique_ptr<Skybox> skybox;
+    std::shared_ptr<Shader> textureShader;
+    std::shared_ptr<Shader> gradientShader;
+    std::shared_ptr<Shader> activeShader;   // pointer to the currently active shader program
 
     float lastX = 400, lastY = 300;
     bool firstMouse = true;

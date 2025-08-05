@@ -5,22 +5,27 @@
 #include "World.hpp"
 
 World::World() {
+	std::filesystem::create_directories("region");
 }
 
 World::~World() {
-    for (const auto& pair : chunks) {
-        delete pair.second;
-    }
 }
 
-World::ChunkKey World::toKey(int chunkX, int chunkZ) {
+ChunkPos World::toKey(int chunkX, int chunkZ) {
     return std::make_pair(chunkX, chunkZ);
 }
 
-Chunk* World::getChunk(const int chunkX, const int chunkZ) {
-    const ChunkKey key = toKey(chunkX, chunkZ);
-    if (chunks.count(key) == 0) return nullptr;
-    return chunks[key];
+std::shared_ptr<Chunk> World::getChunk(int chunkX, int chunkZ) {
+    const ChunkPos key = toKey(chunkX, chunkZ);
+    auto it = chunks.find(key);
+    if (it == chunks.end())
+        return nullptr;
+    return it->second;
+}
+
+std::vector<std::weak_ptr<Chunk>> World::getRenderedChunks()
+{
+	return renderedChunks;
 }
 
 void World::globalCoordsToLocalCoords(int &x, int &y, int &z, int globalX, int globalY, int globalZ, int &chunkX, int &chunkZ)
@@ -48,7 +53,7 @@ BlockType World::getBlockWorld(glm::ivec3 globalCoords)
 	if (it == chunks.end()) {
 		return BlockType::AIR;
 	}
-	Chunk* currChunk = it->second;
+	std::shared_ptr<Chunk> currChunk = it->second;
 	return currChunk->getBlock(x, y, z);
 }
 
@@ -62,14 +67,8 @@ void World::setBlockWorld(glm::ivec3 globalCoords, BlockType type)
 	if (it == chunks.end())
 		return ;
 
-	Chunk* currChunk = it->second;
-	// re-propagate sky/block light
-	Chunk* chunk = getChunk(chunkX, chunkZ);
-	if (!chunk) return;
-
-	chunk->updateChunk();
-
-	return currChunk->setBlock(this, x, y, z, type);
+	std::shared_ptr<Chunk> currChunk = it->second;
+	return currChunk->setBlock(x, y, z, type);
 }
 
 bool World::isBlockVisibleWorld(glm::ivec3 globalCoords)
@@ -82,12 +81,15 @@ bool World::isBlockVisibleWorld(glm::ivec3 globalCoords)
 	if (it == chunks.end()) {
 		return false;
 	}
-	Chunk* currChunk = it->second;
+
+	std::shared_ptr<Chunk> currChunk = it->second;
 	return currChunk->isBlockVisible(glm::vec3(x, y ,z));
 }
 
-void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
-    
+void World::linkNeighbors(int chunkX, int chunkZ, std::shared_ptr<Chunk> &chunk) {
+    if (!chunk)
+		return ;
+
     const int dirX[] = { 0, 0, 1, -1 };
     const int dirZ[] = { 1, -1, 0, 0 };
     const int opp[]  = { SOUTH, NORTH, WEST, EAST };
@@ -96,7 +98,7 @@ void World::linkNeighbors(int chunkX, int chunkZ, Chunk* chunk) {
         int nx = chunkX + dirX[dir];
         int nz = chunkZ + dirZ[dir];
 
-        Chunk* neighbor = getChunk(nx, nz);
+        std::shared_ptr<Chunk> neighbor = getChunk(nx, nz);
 
         chunk->setAdjacentChunks(static_cast<Direction>(dir), neighbor);
         if (neighbor) {
@@ -114,9 +116,10 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
     // in a circular distance from the camera are removed.  We copy the keys
     // to a temporary list to avoid invalidating the iterator while erasing.
     const int unloadRadius = loadRadius + 2;
-    std::vector<ChunkKey> toRemove;
+    std::vector<ChunkPos> toRemove;
     const int currentChunkX = static_cast<int>(std::floor(cameraPos.x / Chunk::WIDTH));
     const int currentChunkZ = static_cast<int>(std::floor(cameraPos.z / Chunk::DEPTH));
+
     for (const auto& entry : chunks) {
         const int cx = entry.first.first;
         const int cz = entry.first.second;
@@ -126,34 +129,10 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
             toRemove.push_back(entry.first);
         }
     }
-    for (const auto& key : toRemove) {
-        // Remove from generatingChunks if present
-        generatingChunks.erase(key);
-        // Erase any pending future for this chunk (not strictly necessary since
-        // finished futures will be ignored, but it cleans up the list)
-        for (auto it = generationFutures.begin(); it != generationFutures.end(); ) {
-            // We can’t peek into a future’s result without blocking, so we
-            // simply compare the stored key if available using shared data.  The
-            // lambda captured the key by value, so we need to get it from
-            // future.get().  Instead, we skip erasing futures here and let
-            // them complete; on completion we’ll discard the chunk if it
-            // isn’t in the desired radius.
-            ++it;
-        }
-        // Delete the chunk and remove from map
-        auto it = chunks.find(key);
-        if (it != chunks.end()) {
-            delete it->second;
-            chunks.erase(it);
-        }
-    }
-
-    // Clear lists of chunks to generate and chunks to render.  We will
-    // repopulate them based on the current camera position and loadRadius.
-    chunksToGenerate.clear();
-    renderedChunks.clear();
-
-
+	for (auto k : toRemove){
+		// std::cout << chunks.find(k)->second.use_count() << std::endl;
+		chunks.erase(k);
+	}
 
     // Determine which chunks we need within the circular radius.  For every
     // candidate coordinate we either mark it for generation or add it to the
@@ -183,22 +162,24 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
                   return std::get<2>(a) > std::get<2>(b);
               });
 
+    // Set of chunks currently being generated asynchronously.  We use
+    // ChunkKey pairs to avoid scheduling the same chunk multiple times.
+    std::unordered_set<ChunkPos> generatingChunks;
+	
     for (const auto& [dx, dz, priority] : candidates) {
         const int cx = currentChunkX + dx;
         const int cz = currentChunkZ + dz;
-        ChunkKey key = toKey(cx, cz);
-        Chunk* chunk = getChunk(cx, cz);
+        ChunkPos key = toKey(cx, cz);
+        std::shared_ptr<Chunk> chunk = getChunk(cx, cz);
 
         if (!chunk) {
-            if (generatingChunks.find(key) == generatingChunks.end()) {
                 if (generationFutures.size() < maxConcurrentGeneration) {
                     generatingChunks.insert(key);
                     generationFutures.push_back(std::async(std::launch::async, [=]() {
-                        Chunk* newChunk = new Chunk(cx, cz);
+                        std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz);
                         return std::make_pair(key, newChunk);
                     }));
                 }
-            }
         } else {
             renderedChunks.push_back(chunk);
         }
@@ -209,45 +190,32 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
     // inserting chunks into the world over multiple frames and avoids long
     // stalls while waiting for all chunks to generate at once.  We loop
     // through the futures vector, checking each for readiness with a
-    // zero-duration wait.  When a future is ready we retrieve the chunk and
-    // insert it into the world, link neighbours, propagate light and update
-    // chunks.
-    std::size_t processed = 0;
-    for (auto it = generationFutures.begin(); it != generationFutures.end() && processed < maxChunkProcessPerFrame; ) {
-        std::future<std::pair<ChunkKey, Chunk*>>& fut = *it;
-        if (fut.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            auto result = fut.get();
-            ChunkKey key = result.first;
-            Chunk* newChunk = result.second;
-            // Remove from generating set since the task is complete
-            generatingChunks.erase(key);
-            // Determine if the chunk is still within the load radius.  If it
-            // is far away (beyond unloadRadius) we discard it to avoid
-            // accumulating memory for chunks that are no longer needed.
-            int cx = key.first;
-            int cz = key.second;
-            int dxChunk = cx - currentChunkX;
-            int dzChunk = cz - currentChunkZ;
-            if (dxChunk * dxChunk + dzChunk * dzChunk > unloadRadius * unloadRadius) {
-                // Outside the interest radius: delete and skip insertion
-                delete newChunk;
-            } else {
-                // Insert into the map
-                chunks[key] = newChunk;
-                // Link neighbours and propagate lighting
-                int chunkX = cx;
-                int chunkZ = cz;
-                linkNeighbors(chunkX, chunkZ, newChunk);
-                newChunk->updateChunk();
-            }
-            // Remove this future from the list regardless of whether we
-            // inserted the chunk
-            it = generationFutures.erase(it);
-            processed++;
-        } else {
-            ++it;
-        }
-    }
+    // zero-duration wait. 
+
+	std::size_t processed = 0;
+	generatingChunks.clear();
+	for (auto it = generationFutures.begin(); it != generationFutures.end() && processed < maxChunkProcessPerFrame; ) {
+		std::future<std::pair<ChunkPos, std::shared_ptr<Chunk>>>& fut = *it;
+		
+		if (fut.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+			auto result = fut.get();
+			chunks[result.first] = result.second;
+			generatingChunks.insert(result.first);
+
+			it = generationFutures.erase(it);
+			processed++;
+		}
+		else {
+			it++;
+		}
+	}
+
+
+	for (auto [chunkX, chunkZ] : generatingChunks) {
+		std::shared_ptr<Chunk> currChunk = getChunk(chunkX, chunkZ);
+		linkNeighbors(chunkX, chunkZ, currChunk); 
+		if (currChunk && currChunk->hasAllAdjacentChunkLoaded()) currChunk->updateChunk();
+	}
 
     // Rebuild the renderedChunks list again after newly generated chunks may
     // have been inserted.  This ensures that chunks created this frame are
@@ -261,7 +229,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
             }
             const int cx = currentChunkX + dx;
             const int cz = currentChunkZ + dz;
-            Chunk* chunk = getChunk(cx, cz);
+            std::shared_ptr<Chunk> chunk = getChunk(cx, cz);
             if (chunk) {
                 renderedChunks.push_back(chunk);
             }
@@ -269,12 +237,14 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
     }
 }
 
-void World::render(const Shader* shaderProgram) const {
+void World::render(const std::shared_ptr<Shader> &shaderProgram) const {
     int count = 0;
-    for (auto& pair : renderedChunks) {
-        count++;
-        pair->draw(shaderProgram);
-    }
+	for (auto& weakChunk : renderedChunks) {
+		if (auto chunk = weakChunk.lock()) {
+			chunk->draw(shaderProgram);
+			count++;
+		}
+	}
 }
 
 // Return the number of chunks currently in the rendered list.
@@ -285,4 +255,100 @@ std::size_t World::getRenderedChunkCount() const {
 // Return the total number of chunks currently loaded in the world (in memory).
 std::size_t World::getTotalChunkCount() const {
     return chunks.size();
+}
+
+void World::saveRegion(int regionX, int regionZ) const {
+
+	const std::string filename = getRegionFilename(regionX, regionZ);
+	bool newFile = false;
+	if (!std::filesystem::exists(filename)) newFile = true;
+
+    std::ofstream out(filename, std::ios::binary | std::ios::trunc);
+    if (!out) throw std::runtime_error("Failed to open file for writing");
+
+    // 1. Write file header if new file
+	RegionFileHeader header;
+	if (newFile) out.write(reinterpret_cast<const char*>(&header), sizeof(header));
+
+    // 2. Prepare and reserve chunk table
+    std::vector<ChunkEntry> entries(REGION_SIZE * REGION_SIZE);
+    std::size_t currentOffset = sizeof(header) + REGION_SIZE * REGION_SIZE * sizeof(ChunkEntry);
+
+    // 3. Write chunk data
+	// for (auto [key, chunk] : chunks)
+	// for (int cx = regionX; cx < regionX + 32; cx++)
+	// {
+	// 	for (int cz = regionZ; cz < regionZ + 32; cz++)
+	// 	{
+	// 		std::shared_ptr<Chunk> chunk = getChunk(cx, cz);
+	// 		chunk->saveToStream(out);
+	// 	}
+	// }
+
+    // for (int i = 0; i < NUM_CHUNKS; ++i) {
+    //     if (!chunkData[i].empty()) {
+    //         entries[i].offset = static_cast<std::uint32_t>(currentOffset);
+    //         entries[i].size   = static_cast<std::uint32_t>(chunkData[i].size());
+
+    //         out.write(chunkData[i].data(), chunkData[i].size());
+    //         currentOffset += chunkData[i].size();
+    //     }
+    // }
+
+    // 4. Go back and write the table
+    out.seekp(sizeof(header), std::ios::beg);
+    out.write(reinterpret_cast<const char*>(entries.data()), entries.size() * sizeof(ChunkEntry));
+}
+
+void World::loadRegion(int regionX, int regionZ) {
+    static constexpr int REGION_CHUNKS = 32;
+    static constexpr int HEADER_SIZE = 4096;
+    static constexpr int SECTOR_SIZE = 4096;
+
+	const std::string filename = getRegionFilename(regionX, regionZ);
+    std::ifstream in(filename, std::ios::binary);
+    if (!in) throw std::runtime_error("Failed to open region file for reading: " + filename);
+
+    const int totalEntries = REGION_CHUNKS * REGION_CHUNKS;
+
+    // For each entry in header (4 bytes per chunk)
+    for (int cz = 0; cz < REGION_CHUNKS; ++cz) {
+        for (int cx = 0; cx < REGION_CHUNKS; ++cx) {
+            int entryIndex = cx + cz * REGION_CHUNKS;
+            std::streampos entryOffset = entryIndex * 4;
+
+            // 1. Read the 4-byte header entry
+            in.seekg(entryOffset, std::ios::beg);
+            unsigned char b[4];
+            in.read(reinterpret_cast<char*>(b), 4);
+            if (!in) continue; // skip if failed
+
+            uint32_t sectorOff = (b[0] << 16) | (b[1] << 8) | b[2];
+            uint32_t sectors   = b[3];
+
+            if (sectorOff == 0 || sectors == 0) {
+                continue; // this chunk was never saved
+            }
+
+            // 2. Compute byte offset in file
+            std::streampos chunkPos = static_cast<std::streampos>(sectorOff) * SECTOR_SIZE;
+
+            // 3. Seek to chunk data
+            in.seekg(chunkPos, std::ios::beg);
+
+            // 4. Load chunk data
+            std::shared_ptr<Chunk> chunk = std::make_shared<Chunk>(regionX + cx, regionZ + cz, false);
+            chunk->loadFromStream(in);
+
+            // 5. Insert into world map
+            chunks[{regionX + cx, regionZ + cz}] = chunk;
+        }
+    }
+}
+
+std::string World::getRegionFilename(int regionX, int regionZ) const {
+	
+    std::ostringstream ss;
+    ss << "region/r." << regionX << "." << regionZ << ".rg";
+    return ss.str();
 }

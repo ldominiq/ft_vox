@@ -10,10 +10,15 @@
 #include <cmath>
 #include <algorithm>
 #include <unordered_set>
+#include <memory>
 
 #include <future>
+#include <fstream>
+#include <filesystem>
 
 using ChunkPos = std::pair<int, int>; // (chunkX, chunkZ)
+
+static constexpr int REGION_SIZE = 32;
 
 template <>
 struct std::hash<ChunkPos> {
@@ -22,13 +27,26 @@ struct std::hash<ChunkPos> {
     }
 };
 
+struct RegionFileHeader {
+    char magic[4] = {'R','G','N','1'};
+    std::uint32_t version = 1;
+    std::uint32_t regionSize = REGION_SIZE;
+};
+
+struct ChunkEntry {
+    std::uint32_t offset = 0;
+    std::uint32_t size = 0;
+};
+
 class World {
 public:
     World();
     ~World();
 
+	std::vector<std::weak_ptr<Chunk>> getRenderedChunks();
+
     void updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cameraDir);
-    void render(const Shader* shaderProgram) const;
+    void render(const std::shared_ptr<Shader> &shaderProgram) const;
 
     // Return the number of chunks currently in the rendered list.
     std::size_t getRenderedChunkCount() const;
@@ -47,27 +65,23 @@ public:
     void setMaxConcurrentGeneration(std::size_t n) { maxConcurrentGeneration = std::max<std::size_t>(1, n); }
 
 	void globalCoordsToLocalCoords(int &x, int &y, int &z, int globalX, int globalY, int globalZ, int &chunkX, int &chunkZ);
-    Chunk* getChunk(int chunkX, int chunkZ);
+    std::shared_ptr<Chunk> getChunk(int chunkX, int chunkZ);
 	BlockType getBlockWorld(glm::ivec3 globalCoords); //unused for now
 	void setBlockWorld(glm::ivec3 globalCoords, BlockType type);
 	bool isBlockVisibleWorld(glm::ivec3 globalCoords);
 
 private:
-    using ChunkKey = std::pair<int, int>; // (chunkX, chunkZ)
-    std::unordered_map<ChunkPos, Chunk*> chunks;
-    std::vector<Chunk*> renderedChunks;
+
+    std::unordered_map<ChunkPos, std::shared_ptr<Chunk>> chunks;
+    std::vector<std::weak_ptr<Chunk>> renderedChunks;
     std::vector<std::pair<int, int>> chunksToGenerate;
 
-    // Set of chunks currently being generated asynchronously.  We use
-    // ChunkKey pairs to avoid scheduling the same chunk multiple times.
-    std::unordered_set<ChunkKey> generatingChunks;
-
     // Pending futures representing asynchronous chunk generation tasks.
-    std::vector<std::future<std::pair<ChunkKey, Chunk*>>> generationFutures;
+    std::vector<std::future<std::pair<ChunkPos, std::shared_ptr<Chunk>>>> generationFutures;
 
     // Maximum number of chunk futures to process (integrate into the world)
     // per updateVisibleChunks() call.  Limiting this reduces frame spikes.
-    std::size_t maxChunkProcessPerFrame = 10;
+    std::size_t maxChunkProcessPerFrame = 1000;
 
     // The radius (in chunks) around the camera in which to load chunks.  This
     // value can be changed at runtime via the UI.
@@ -79,8 +93,12 @@ private:
     // value can be tuned based on the number of available CPU cores.
     std::size_t maxConcurrentGeneration = 1;
 
-    void linkNeighbors(int chunkX, int chunkZ, Chunk* chunk);
-    static ChunkKey toKey(int chunkX, int chunkZ);
+    void linkNeighbors(int chunkX, int chunkZ, std::shared_ptr<Chunk> &chunk);
+    static ChunkPos toKey(int chunkX, int chunkZ);
+
+	void saveRegion(int regionX, int regionZ) const;
+	void loadRegion(int regionX, int regionZ);
+	std::string getRegionFilename(int regionX, int regionZ) const;
 };
 
 #endif //WORLD_HPP
