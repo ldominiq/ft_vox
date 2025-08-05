@@ -191,9 +191,9 @@ void App::render() {
         activeShader->setVec3("ambientColor", ambientColor);
 
         world->updateVisibleChunks(camera->Position, camera->Front);
-        world->render(activeShader.get());
+        world->render(activeShader);
         skybox->draw(camera->getViewMatrix(), projection);
-        camera->drawWireframeSelectedBlockFace(world.get(), view, projection);
+        camera->drawWireframeSelectedBlockFace(world, view, projection);
 
         // Build the ImGui UI.  We always draw the debug overlay.  When
         // uiInteractive is false we disable input on the window, allowing
@@ -357,7 +357,7 @@ void App::processInput() {
 	//reload chunk. F3 + A;
 	if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS &&
     	glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-		for (auto chunkPtr : world->getRenderedChunks())
+		for (auto &chunkPtr : world->getRenderedChunks())
 		{
 			if (auto chunk = chunkPtr.lock())
 				chunk->updateChunk();
@@ -446,7 +446,7 @@ void App::processInput() {
 
         // Move faster
         if (glfwGetKey(window, controlsArray[MOVE_FAST]) == GLFW_PRESS)
-            camera->MovementSpeed = 20.0f;
+            camera->MovementSpeed = 100.0f;
         if (glfwGetKey(window, controlsArray[MOVE_FAST]) == GLFW_RELEASE)
             camera->MovementSpeed = 2.0f;
     }
@@ -455,7 +455,7 @@ void App::processInput() {
     if (!capturingMouse) {
         int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
         if (state == GLFW_PRESS && !leftMousePressedLastFrame)
-            camera->removeTargettedBlock(world.get());
+            camera->removeTargettedBlock(world);
         leftMousePressedLastFrame = (state == GLFW_PRESS);
     }
 

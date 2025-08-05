@@ -22,6 +22,7 @@
 #include "BitPackedArray.hpp"
 
 class World;
+class BlockStorage;
 
 struct IVec3Hash {
     size_t operator()(const glm::ivec3& v) const {
@@ -45,7 +46,8 @@ enum Direction {
 	NORTH = 0,
 	SOUTH,
 	EAST,
-	WEST
+	WEST,
+	NONE
 };
 
 enum class BiomeType {
@@ -58,14 +60,15 @@ enum class BiomeType {
 
 class Chunk {
 public:
-    static constexpr int WIDTH = 16; // Size of the chunck in blocks
-    static constexpr int HEIGHT = 256; // Height of the chunck in blocks
-    static constexpr int DEPTH = 16; // Depth of the chunck in blocks
+	static constexpr int WIDTH = 16; // Size of the chunck in blocks
+	static constexpr int HEIGHT = 256; // Height of the chunck in blocks
+	static constexpr int DEPTH = 16; // Depth of the chunck in blocks
     static constexpr int BLOCK_COUNT = WIDTH * HEIGHT * DEPTH;
 
-    Chunk(int chunkX, int chunkZ);
+    Chunk(const int chunkX, const int chunkZ, const bool doGenerate = true);
+	Chunk() = default;
     
-    void carveWorm(Worm &worm);
+    void carveWorm(Worm& worm, BlockStorage &blocks);
     void generate();
 
     BlockType getBlock(int x, int y, int z) const;
@@ -73,27 +76,25 @@ public:
 
 	bool isBlockVisible(glm::ivec3 blockPos);
 
-    void draw(const Shader* shaderProgram) const; // Draw the chunk using the given shader program
+    void draw(const std::shared_ptr<Shader> &shaderProgram) const; // Draw the chunk using the given shader program
 
-	void setAdjacentChunks(int direction, std::shared_ptr<Chunk> chunk);
+	void setAdjacentChunks(int direction, std::shared_ptr<Chunk> &chunk);
 	bool hasAllAdjacentChunkLoaded() const;
 
 	bool needsUpdate() const;
 	void updateChunk(); //updateVisibleBlocks + buildMesh. Used when updating blocks in a chunk
 
+	void saveToStream(std::ostream& out) const;
+	void loadFromStream(std::istream& in);
+
 private:
 
-	bool m_needsUpdate;
+	bool m_needsUpdate = true;
 	std::weak_ptr<Chunk> adjacentChunks[4] = {};
 
 	std::vector<BlockType> palette; // Index -> BlockType
 	std::unordered_map<BlockType, uint32_t> paletteMap; // BlockType -> Index
     BitPackedArray blockIndices;
-
-	std::vector<BlockType> blockTypeVector;	// unpacked block indices
-	// std::vector<glm::ivec3> blocks; //vector of all blocks. Only useful for chunk generation for performance. Thrown away because of RAM
-    std::vector<glm::ivec3> visibleBlocks; // List of visible blocks for rendering
-	std::unordered_set<glm::ivec3, IVec3Hash> visibleBlocksSet; //copy of visibly blocks for 0(1) Lookup
 	
     int originX; // X coordinate of the chunck origin
     int originZ; // Z coordinate of the chunck origin
@@ -103,8 +104,26 @@ private:
 
     void addFace(int x, int y, int z, int face); // Add a face to the mesh vertices
 
-	void updateVisibleBlocks();
 	void buildMesh(); // Build the mesh for rendering
+};
+
+class BlockStorage {
+	public:
+		BlockStorage() : data(Chunk::WIDTH * Chunk::HEIGHT * Chunk::DEPTH, BlockType::AIR) {}
+
+		BlockType& at(int x, int y, int z) {
+			return data[x + Chunk::WIDTH * (y + Chunk::HEIGHT * z)];
+		}
+		const BlockType& at(int x, int y, int z) const {
+			return data[x + Chunk::WIDTH * (y + Chunk::HEIGHT * z)];
+		}
+
+		const std::vector<BlockType> &getData() const {
+			return data;
+		}
+
+	private:
+		std::vector<BlockType> data;
 };
 
 #endif

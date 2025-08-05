@@ -52,7 +52,7 @@ void Camera::updateCameraVectors() {
     Up    = glm::normalize(glm::cross(Right, Front));
 }
 
-bool Camera::getTargetedBlock(World *world, glm::ivec3& hitBlock, glm::ivec3& faceNormal, float maxDistance) {
+bool Camera::getTargetedBlock(std::unique_ptr<World> &world, glm::ivec3& hitBlock, glm::ivec3& faceNormal, float maxDistance) {
     glm::vec3 rayOrigin = Position;
     glm::vec3 rayDir = glm::normalize(Front);
 
@@ -104,7 +104,7 @@ bool Camera::getTargetedBlock(World *world, glm::ivec3& hitBlock, glm::ivec3& fa
     return false;
 }
 
-void Camera::removeTargettedBlock(World *world)
+void Camera::removeTargettedBlock(std::unique_ptr<World> &world)
 {
 	glm::ivec3 blockPos, faceNormal;
 	if (getTargetedBlock(world, blockPos, faceNormal))
@@ -151,7 +151,7 @@ void Camera::initWireframeCube() {
 	blockWireframeShader = std::make_unique<Shader>("shaders/simpleWireframe.vert", "shaders/simpleWireframe.frag");
 }
 
-void Camera::drawWireframeSelectedBlockFace(World *world, glm::mat4 view, glm::mat4 projection) {
+void Camera::drawWireframeSelectedBlockFace(std::unique_ptr<World> &world, glm::mat4 &view, glm::mat4 &projection) {
 
 	glm::ivec3 blockPos, faceNormal;
 	if (!getTargetedBlock(world, blockPos, faceNormal))

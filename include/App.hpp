@@ -79,7 +79,7 @@ private:
     std::unique_ptr<Camera> camera;
 	GLFWmonitor* monitor;
     const GLFWvidmode* mode;
-    // Chunk* chunk;
+
     std::unique_ptr<World> world;
     std::unique_ptr<Skybox> skybox;
     std::shared_ptr<Shader> textureShader;

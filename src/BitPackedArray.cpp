@@ -75,41 +75,84 @@ void BitPackedArray::decodeAll(std::vector<uint32_t>& out) const {
     }
 }
 
-void BitPackedArray::encodeAll(const std::vector<uint32_t>& in) {
-    // if (in.size() != m_size)
-    //     throw std::invalid_argument("encodeAll - input size mismatch");
+void BitPackedArray::encodeAll(
+    const std::vector<BlockType>& blocks,
+    std::vector<BlockType>& palette,
+    std::unordered_map<BlockType, uint32_t>& paletteMap)
+{
+    if (blocks.size() != m_size) {
+        throw std::invalid_argument("encodeAll: input vector size does not match array size");
+    }
 
-    // size_t bits = m_bitsPerEntry;
-    // uint32_t mask = (1u << bits) - 1;
-    // size_t bitPos = 0;
+    palette.clear();
+    paletteMap.clear();
 
-    // // Clear current data
-    // std::fill(m_data.begin(), m_data.end(), 0);
+    // Build palette
+    for (const auto& block : blocks) {
+        if (paletteMap.find(block) == paletteMap.end()) {
+            uint32_t index = static_cast<uint32_t>(palette.size());
+            palette.push_back(block);
+            paletteMap[block] = index;
+        }
+    }
 
-    // const size_t n = m_size;
-    // for (size_t i = 0; i < n; ++i) {
-    //     uint32_t value = in[i];
-    //     if (value > mask) {
-    //         throw std::invalid_argument("encodeAll - value exceeds bit capacity");
-    //     }
+    // Compute required bits
+    uint32_t neededBits = 1;
+    while ((1u << neededBits) < palette.size()) {
+        ++neededBits;
+    }
+    if (neededBits > m_bitsPerEntry) {
+        throw std::runtime_error("encodeAll: palette requires more bits than this BitPackedArray supports");
+    }
 
-    //     size_t wordIndex = bitPos >> 5;  // bitPos / 32
-    //     size_t bitOffset = bitPos & 31;  // bitPos % 32
+    std::fill(m_data.begin(), m_data.end(), 0);
 
-    //     // Write into first word
-    //     m_data[wordIndex] |= (value & mask) << bitOffset;
+    // Pack values
+    size_t bitPos = 0;
+    uint32_t mask = (1u << m_bitsPerEntry) - 1;
 
-    //     // Handle overflow into next word
-    //     if (bitOffset + bits > 32) {
-    //         size_t bitsInNextWord = (bitOffset + bits) - 32;
-    //         m_data[wordIndex + 1] |= value >> (bits - bitsInNextWord);
-    //     }
+    for (size_t i = 0; i < blocks.size(); ++i) {
+        uint32_t value = paletteMap[blocks[i]] & mask;
 
-    //     bitPos += bits;
-    // }
+        size_t wordIndex = bitPos >> 5;
+        size_t bitOffset = bitPos & 31;
+
+        m_data[wordIndex] |= value << bitOffset;
+
+        if (bitOffset + m_bitsPerEntry > 32) {
+            size_t bitsInNextWord = (bitOffset + m_bitsPerEntry) - 32;
+            m_data[wordIndex + 1] |= value >> (m_bitsPerEntry - bitsInNextWord);
+        }
+
+        bitPos += m_bitsPerEntry;
+    }
 }
 
-std::vector<uint32_t> BitPackedArray::getData()
-{
-	return m_data;
+
+void BitPackedArray::saveToStream(std::ostream& out) const {
+    // Write header
+    out.write(reinterpret_cast<const char*>(&m_size), sizeof(m_size));
+    out.write(reinterpret_cast<const char*>(&m_bitsPerEntry), sizeof(m_bitsPerEntry));
+
+    // Write packed data
+    size_t dataSize = m_data.size();
+    out.write(reinterpret_cast<const char*>(&dataSize), sizeof(dataSize));
+    out.write(reinterpret_cast<const char*>(m_data.data()), dataSize * sizeof(uint32_t));
+}
+
+void BitPackedArray::loadFromStream(std::istream& in) {
+    // Read header
+    size_t size;
+    uint8_t bitsPerEntry;
+    size_t dataSize;
+
+    in.read(reinterpret_cast<char*>(&size), sizeof(size));
+    in.read(reinterpret_cast<char*>(&bitsPerEntry), sizeof(bitsPerEntry));
+    in.read(reinterpret_cast<char*>(&dataSize), sizeof(dataSize));
+
+    m_size = size;
+    m_bitsPerEntry = bitsPerEntry;
+    m_data.resize(dataSize);
+
+    in.read(reinterpret_cast<char*>(m_data.data()), dataSize * sizeof(uint32_t));
 }

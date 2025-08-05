@@ -41,12 +41,12 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
 }
 
 
-Chunk::Chunk(const int chunkX, const int chunkZ) 
+Chunk::Chunk(const int chunkX, const int chunkZ, const bool doGenerate) 
     : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH),
-      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4),  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
-	m_needsUpdate(true)
+      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4)  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
 {
-    generate();
+	if (doGenerate)
+    	generate();
 }
 
 bool Chunk::needsUpdate() const {
@@ -62,11 +62,11 @@ bool Chunk::hasAllAdjacentChunkLoaded() const {
     return true;
 }
 
-void Chunk::setAdjacentChunks(const int direction, std::shared_ptr<Chunk> chunk){
+void Chunk::setAdjacentChunks(const int direction, std::shared_ptr<Chunk> &chunk){
     adjacentChunks[direction] = chunk;
 }
 
-void Chunk::carveWorm(Worm &worm) {
+void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
 
     FastNoiseLite noise;
     noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
@@ -102,7 +102,8 @@ void Chunk::carveWorm(Worm &worm) {
                 const int bz = static_cast<int>(p.z - originZ);
 
                 if (bx >= 0 && bx < WIDTH && by >= 0 && by < HEIGHT && bz >= 0 && bz < DEPTH) {
-					setBlock(bx, by, bz, BlockType::AIR);
+					// setBlock(bx, by, bz, BlockType::AIR);
+					blocks.at(bx,by,bz) = BlockType::AIR;
                 }
             }
         }
@@ -125,6 +126,8 @@ void Chunk::generate() {
     FastNoiseLite wormNoise;
     wormNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     wormNoise.SetFrequency(0.1f);
+
+	BlockStorage blocks;
 
     // ========== Base terrain ==========
     for (int x = 0; x < WIDTH; ++x) {
@@ -209,7 +212,8 @@ void Chunk::generate() {
 					}();
 				}
 
-				setBlock(x, y, z, block);
+				blocks.at(x,y,z) = block;
+				// setBlock(x, y, z, block);
 			}
         }
     }
@@ -240,10 +244,12 @@ void Chunk::generate() {
                 Worm worm = Worm(glm::vec3(worldX, worldY, worldZ), 2.0f, 240);
                 // worms.emplace_back(glm::vec3(worldX, worldY, worldZ), 2.0f, 300, &wormNoise);
 
-                carveWorm(worm);
+                carveWorm(worm, blocks);
             }
         }
     }
+
+	blockIndices.encodeAll(blocks.getData(), palette, paletteMap);
 }
 
 
@@ -252,34 +258,32 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
         return BlockType::AIR; // Out of bounds returns air
     }
 
-    int index = x + WIDTH * (z + DEPTH * y);
+    int index = x + WIDTH * (y + HEIGHT * z);
     uint32_t paletteIndex = blockIndices.get(index);
     return palette[paletteIndex];
 }
 
-//TODO create a system to compact the data once in a while. So it doesn't get too fragmented after many delete/set calls. If I understood correctly
 void Chunk::setBlock(int x, int y, int z, BlockType type) {
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH) {
         return; // Out of bounds, do nothing
     }
 
-    int index = x + WIDTH * (z + DEPTH * y);
-
+    int index = x + WIDTH * (y + HEIGHT * z);
     auto it = paletteMap.find(type);
-    uint32_t paletteIndex;
+	uint32_t paletteIndex;
 
-    if (it == paletteMap.end()) {
+	if (it == paletteMap.end()) {
         paletteIndex = static_cast<uint32_t>(palette.size());
         palette.push_back(type);
         paletteMap[type] = paletteIndex;
     } else {
-        paletteIndex = it->second;
+    	paletteIndex = it->second;
     }
 
     blockIndices.set(index, paletteIndex);
 
-	if (!m_needsUpdate)
-		updateChunk();
+	// if (!m_needsUpdate)
+	updateChunk();
 
 	//update possible neighbour
 	if (x == 0) {
@@ -304,146 +308,102 @@ void Chunk::setBlock(int x, int y, int z, BlockType type) {
 	}
 }
 
-void Chunk::updateVisibleBlocks() {
-    visibleBlocks.clear();
-	visibleBlocksSet.clear();
+bool Chunk::isBlockVisible(glm::ivec3 pos) {
+    int x = pos.x, y = pos.y, z = pos.z;
+    if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH)
+        return false;
 
-	blockTypeVector.resize(WIDTH * HEIGHT * DEPTH);
+    int idx = x + WIDTH * (y + HEIGHT * z);
+    if (getBlock(x,y,z) == BlockType::AIR)
+        return false;
 
-	std::vector<uint32_t> decodedIndices;
-	blockIndices.decodeAll(decodedIndices);
+    auto getBlockOrNeighbor = [&](int dx, int dy, int dz, Direction dir) -> BlockType {
+        if (x + dx < 0 || x + dx >= WIDTH ||
+            z + dz < 0 || z + dz >= DEPTH) 
+        {
+            auto neighbor = adjacentChunks[dir].lock();
+            if (!neighbor) return BlockType::AIR;
+            int nx = (dx == -1 ? WIDTH - 1 : (dx == 1 ? 0 : x));
+            int nz = (dz == -1 ? DEPTH - 1 : (dz == 1 ? 0 : z));
+            return neighbor->getBlock(nx, y + dy, nz);
+        }
+        if (y + dy < 0 || y + dy >= HEIGHT)
+            return BlockType::AIR;
+		return getBlock(x + dx, y + dy, z + dz);
+    };
 
-	for (size_t i = 0; i < blockTypeVector.size(); ++i) {
-		uint32_t paletteIndex = decodedIndices[i];
-		blockTypeVector[i] = palette[paletteIndex];
-	}
-
-	for (int x = 0; x < WIDTH; ++x) {
-		for (int y = 0; y < HEIGHT; ++y) {
-			for (int z = 0; z < DEPTH; ++z) {
-				BlockType block = blockTypeVector[x + WIDTH * (z + DEPTH * y)];
-				if (block == BlockType::AIR) continue;
-
-				bool exposed = false;
-
-				// -X (WEST)
-				exposed |= (x == 0)
-					? ([&]() {
-						auto westChunk = adjacentChunks[WEST].lock();
-						return !westChunk || westChunk->getBlock(WIDTH - 1, y, z) == BlockType::AIR;
-					})()
-					: (blockTypeVector[(x - 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR);
-
-				// +X (EAST)
-				exposed |= (x == WIDTH - 1)
-					? ([&]() {
-						auto eastChunk = adjacentChunks[EAST].lock();
-						return !eastChunk || eastChunk->getBlock(0, y, z) == BlockType::AIR;
-					})()
-					: (blockTypeVector[(x + 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR);
-
-				// -Y (bottom)
-				exposed |= (y == 0)
-					? true
-					: (blockTypeVector[x + WIDTH * (z + DEPTH * (y - 1))] == BlockType::AIR);
-
-				// +Y (top)
-				exposed |= (y == HEIGHT - 1)
-					? true
-					: (blockTypeVector[x + WIDTH * (z + DEPTH * (y + 1))] == BlockType::AIR);
-
-				// -Z (SOUTH)
-				exposed |= (z == 0)
-					? ([&]() {
-						auto southChunk = adjacentChunks[SOUTH].lock();
-						return !southChunk || southChunk->getBlock(x, y, DEPTH - 1) == BlockType::AIR;
-					})()
-					: (blockTypeVector[x + WIDTH * ((z - 1) + DEPTH * y)] == BlockType::AIR);
-
-				// +Z (NORTH)
-				exposed |= (z == DEPTH - 1)
-					? ([&]() {
-						auto northChunk = adjacentChunks[NORTH].lock();
-						return !northChunk || northChunk->getBlock(x, y, 0) == BlockType::AIR;
-					})()
-					: (blockTypeVector[x + WIDTH * ((z + 1) + DEPTH * y)] == BlockType::AIR);
-
-
-				if (exposed) {
-					visibleBlocks.emplace_back(x, y, z);
-					visibleBlocksSet.insert(glm::ivec3(x, y, z));
-				}
-			}
-		}
-	}
+    return getBlockOrNeighbor(0, 0, +1, NORTH) == BlockType::AIR ||
+           getBlockOrNeighbor(0, 0, -1, SOUTH) == BlockType::AIR ||
+           y == HEIGHT - 1 || getBlockOrNeighbor(0, +1, 0, NONE) == BlockType::AIR ||
+           y == 0 || getBlockOrNeighbor(0, -1, 0, NONE) == BlockType::AIR ||
+           getBlockOrNeighbor(+1, 0, 0, EAST) == BlockType::AIR ||
+           getBlockOrNeighbor(-1, 0, 0, WEST) == BlockType::AIR;
 }
 
-bool Chunk::isBlockVisible(glm::ivec3 blockPos)
-{
-	return visibleBlocksSet.count(blockPos) > 0;
-}
 
 void Chunk::buildMesh() {
-	meshVertices.clear();
+    meshVertices.clear();
+	std::vector<BlockType> blockTypeVector;	// unpacked block indices
 
-	for (const auto& block : visibleBlocks) {
-		int x = block.x;
-		int y = block.y;
-		int z = block.z;
+    // Decode palette indices to block types
+    blockTypeVector.resize(WIDTH * HEIGHT * DEPTH);
+    std::vector<uint32_t> decodedIndices;
+    blockIndices.decodeAll(decodedIndices);
 
-		int idx = x + WIDTH * (z + DEPTH * y);
-		if (blockTypeVector[idx] == BlockType::AIR) continue;
+    for (size_t i = 0; i < blockTypeVector.size(); ++i) {
+        uint32_t paletteIndex = decodedIndices[i];
+        blockTypeVector[i] = palette[paletteIndex];
+    }
 
-		// FRONT (+Z)
-		if (z == DEPTH - 1) {
-			auto northChunk = adjacentChunks[NORTH].lock();
-			if (!northChunk || northChunk->getBlock(x, y, 0) == BlockType::AIR)
-				addFace(x, y, z, 0);
-		} else if (blockTypeVector[x + WIDTH * ((z + 1) + DEPTH * y)] == BlockType::AIR) {
-			addFace(x, y, z, 0);
-		}
+    auto getBlockOrNeighbor = [&](int x, int y, int z, int dx, int dy, int dz, Direction dir) -> BlockType {
+        if (x + dx < 0 || x + dx >= WIDTH ||
+            z + dz < 0 || z + dz >= DEPTH) 
+        {
+            auto neighbor = adjacentChunks[dir].lock();
+            if (!neighbor) return BlockType::AIR;
+            int nx = (dx == -1 ? WIDTH - 1 : (dx == 1 ? 0 : x));
+            int nz = (dz == -1 ? DEPTH - 1 : (dz == 1 ? 0 : z));
+            return neighbor->getBlock(nx, y + dy, nz);
+        }
+        if (y + dy < 0 || y + dy >= HEIGHT) 
+            return BlockType::AIR; // top or bottom world edge inside chunk
+        return blockTypeVector[(x + dx) + WIDTH * ((y + dy) + HEIGHT * (z + dz))];
+    };
 
-		// BACK (-Z)
-		if (z == 0) {
-			auto southChunk = adjacentChunks[SOUTH].lock();
-			if (!southChunk || southChunk->getBlock(x, y, DEPTH - 1) == BlockType::AIR)
-				addFace(x, y, z, 1);
-		} else if (blockTypeVector[x + WIDTH * ((z - 1) + DEPTH * y)] == BlockType::AIR) {
-			addFace(x, y, z, 1);
-		}
+    for (int x = 0; x < WIDTH; ++x) {
+        for (int y = 0; y < HEIGHT; ++y) {
+            for (int z = 0; z < DEPTH; ++z) {
+                int idx = x + WIDTH * (y + HEIGHT * z);
+                if (blockTypeVector[idx] == BlockType::AIR) continue;
 
-		// TOP (+Y)
-		if (y == HEIGHT - 1 || blockTypeVector[x + WIDTH * (z + DEPTH * (y + 1))] == BlockType::AIR) {
-			addFace(x, y, z, 2);
-		}
+                // FRONT (+Z)
+                if (getBlockOrNeighbor(x, y, z, 0, 0, +1, NORTH) == BlockType::AIR)
+                    addFace(x, y, z, 0);
 
-		// BOTTOM (-Y)
-		if (y == 0 || blockTypeVector[x + WIDTH * (z + DEPTH * (y - 1))] == BlockType::AIR) {
-			addFace(x, y, z, 3);
-		}
+                // BACK (-Z)
+                if (getBlockOrNeighbor(x, y, z, 0, 0, -1, SOUTH) == BlockType::AIR)
+                    addFace(x, y, z, 1);
 
-		// RIGHT (+X)
-		if (x == WIDTH - 1) {
-			auto eastChunk = adjacentChunks[EAST].lock();
-			if (!eastChunk || eastChunk->getBlock(0, y, z) == BlockType::AIR)
-				addFace(x, y, z, 4);
-		} else if (blockTypeVector[(x + 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR) {
-			addFace(x, y, z, 4);
-		}
+                // TOP (+Y) – no vertical neighbor chunks
+                if (y == HEIGHT - 1 || getBlockOrNeighbor(x, y, z, 0, +1, 0, NONE) == BlockType::AIR)
+                    addFace(x, y, z, 2);
 
-		// LEFT (-X)
-		if (x == 0) {
-			auto westChunk = adjacentChunks[WEST].lock();
-			if (!westChunk || westChunk->getBlock(WIDTH - 1, y, z) == BlockType::AIR)
-				addFace(x, y, z, 5);
-		} else if (blockTypeVector[(x - 1) + WIDTH * (z + DEPTH * y)] == BlockType::AIR) {
-			addFace(x, y, z, 5);
-		}
+                // BOTTOM (-Y)
+                if (y == 0 || getBlockOrNeighbor(x, y, z, 0, -1, 0, NONE) == BlockType::AIR)
+                    addFace(x, y, z, 3);
 
-	}
+                // RIGHT (+X)
+                if (getBlockOrNeighbor(x, y, z, +1, 0, 0, EAST) == BlockType::AIR)
+                    addFace(x, y, z, 4);
 
+                // LEFT (-X)
+                if (getBlockOrNeighbor(x, y, z, -1, 0, 0, WEST) == BlockType::AIR)
+                    addFace(x, y, z, 5);
+            }
+        }
+    }
 
-    // Upload mesh data to OpenGL
+    // Upload mesh to OpenGL (unchanged)
     if (VAO == 0)
         glGenVertexArrays(1, &VAO);
     if (VBO == 0)
@@ -453,36 +413,21 @@ void Chunk::buildMesh() {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, meshVertices.size() * sizeof(float), meshVertices.data(), GL_STATIC_DRAW);
 
-    // Currantly, we use 9 floats per vertex:
-    // 3 for position, 2 for texture coordinates, 1 for vertex Y (for gradient), and 3 for normal.
     GLsizei stride = 9 * sizeof(float);
-
-    // layout(location = 0) = vec3 position
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, static_cast<void *>(nullptr));
     glEnableVertexAttribArray(0);
-
-    // layout(location = 1) = vec2 texCoord
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
-
-    // layout(location = 2) = float vertexY (gradient)
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(5 * sizeof(float)));
     glEnableVertexAttribArray(2);
-
-    // layout(location = 3) = vec3 normal
     glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(6 * sizeof(float)));
     glEnableVertexAttribArray(3);
 
-	meshVerticesSize = meshVertices.size();
-	meshVertices.clear();
-	meshVertices.shrink_to_fit(); // optional
-	blockTypeVector.clear();
-	blockTypeVector.shrink_to_fit();
-	visibleBlocks.clear();
-	visibleBlocks.shrink_to_fit();
-	// visibleBlocksSet.clear();
-	// visibleBlocksSet.rehash(0);
+    meshVerticesSize = meshVertices.size();
+    meshVertices.clear();
+    meshVertices.shrink_to_fit();
 }
+
 
 void Chunk::addFace(int x, int y, int z, int face) {
     const float faceX = static_cast<float>(originX + x);
@@ -571,13 +516,50 @@ void Chunk::addFace(int x, int y, int z, int face) {
 
 void Chunk::updateChunk()
 {
-	updateVisibleBlocks();
 	buildMesh();
 	m_needsUpdate = false;
 }
 
-void Chunk::draw(const Shader* shaderProgram) const {
-    shaderProgram->use();
+void Chunk::draw(const std::shared_ptr<Shader>& shader) const {
+    shader->use();
     glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, meshVerticesSize / 9); // 9 floats per vertex (3 pos + 2 tex + 1 Y + 3N)
+    glDrawArrays(GL_TRIANGLES, 0, meshVerticesSize / 9);
+}
+
+void Chunk::saveToStream(std::ostream& out) const {
+    // Write chunk key for O(1) lookup later
+    out.write(reinterpret_cast<const char*>(&originX), sizeof(originX));
+    out.write(reinterpret_cast<const char*>(&originZ), sizeof(originZ));
+
+    // --- Save palette ---
+    uint32_t paletteSize = static_cast<uint32_t>(palette.size());
+    out.write(reinterpret_cast<const char*>(&paletteSize), sizeof(paletteSize));
+
+    for (const auto& block : palette) {
+        out.write(reinterpret_cast<const char*>(&block), sizeof(block));
+    }
+
+	// Save block data
+    blockIndices.saveToStream(out);
+}
+
+void Chunk::loadFromStream(std::istream& in) {
+    // Read chunk key
+    in.read(reinterpret_cast<char*>(&originX), sizeof(originX));
+    in.read(reinterpret_cast<char*>(&originZ), sizeof(originZ));
+
+    // --- Load palette ---
+    uint32_t paletteSize;
+    in.read(reinterpret_cast<char*>(&paletteSize), sizeof(paletteSize));
+
+    palette.resize(paletteSize);
+    paletteMap.clear();
+
+    for (uint32_t i = 0; i < paletteSize; ++i) {
+        in.read(reinterpret_cast<char*>(&palette[i]), sizeof(BlockType));
+        paletteMap[palette[i]] = i; // rebuild map
+    }
+
+	// Load block data
+    blockIndices.loadFromStream(in);
 }
