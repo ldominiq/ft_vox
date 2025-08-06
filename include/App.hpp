@@ -68,6 +68,8 @@ private:
 	void saveControls(const char* filename = "controls.cfg");
 	void loadControlsFromFile(const char* filename = "controls.cfg");
 
+	void saveWorldOnExit();
+
     unsigned int VAO, VBO, EBO, shaderProgram, texture;
 
     enum class DisplayMode {

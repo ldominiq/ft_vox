@@ -66,7 +66,6 @@ public:
     static constexpr int BLOCK_COUNT = WIDTH * HEIGHT * DEPTH;
 
     Chunk(const int chunkX, const int chunkZ, const bool doGenerate = true);
-	Chunk() = default;
     
     void carveWorm(Worm& worm, BlockStorage &blocks);
     void generate();
@@ -81,15 +80,16 @@ public:
 	void setAdjacentChunks(int direction, std::shared_ptr<Chunk> &chunk);
 	bool hasAllAdjacentChunkLoaded() const;
 
-	bool needsUpdate() const;
-	void updateChunk(); //updateVisibleBlocks + buildMesh. Used when updating blocks in a chunk
-
 	void saveToStream(std::ostream& out) const;
 	void loadFromStream(std::istream& in);
 
+	void buildMesh(); // Build the mesh for rendering
+	void buildMeshData();
+	void uploadMesh();
+
+	bool preGenerated = false;
 private:
 
-	bool m_needsUpdate = true;
 	std::weak_ptr<Chunk> adjacentChunks[4] = {};
 
 	std::vector<BlockType> palette; // Index -> BlockType
@@ -103,8 +103,6 @@ private:
     std::vector<float> meshVertices; // Vertices for the mesh
 
     void addFace(int x, int y, int z, int face); // Add a face to the mesh vertices
-
-	void buildMesh(); // Build the mesh for rendering
 };
 
 class BlockStorage {

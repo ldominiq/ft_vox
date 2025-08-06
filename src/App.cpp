@@ -286,6 +286,9 @@ void App::run() {
 }
 
 void App::cleanup() {
+
+	saveWorldOnExit();
+
     // Shutdown ImGui before terminating GLFW
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -360,7 +363,7 @@ void App::processInput() {
 		for (auto &chunkPtr : world->getRenderedChunks())
 		{
 			if (auto chunk = chunkPtr.lock())
-				chunk->updateChunk();
+				chunk->buildMesh();
 		}
 		return;
 	}
@@ -571,4 +574,9 @@ size_t App::getCurrentRSS() {
 #else
     return 0;
 #endif
+}
+
+void App::saveWorldOnExit()
+{
+	world->saveRegionsOnExit();
 }

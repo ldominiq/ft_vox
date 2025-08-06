@@ -47,10 +47,7 @@ Chunk::Chunk(const int chunkX, const int chunkZ, const bool doGenerate)
 {
 	if (doGenerate)
     	generate();
-}
-
-bool Chunk::needsUpdate() const {
-	return m_needsUpdate;
+	else preGenerated = true;
 }
 
 bool Chunk::hasAllAdjacentChunkLoaded() const {
@@ -282,28 +279,27 @@ void Chunk::setBlock(int x, int y, int z, BlockType type) {
 
     blockIndices.set(index, paletteIndex);
 
-	// if (!m_needsUpdate)
-	updateChunk();
+	buildMesh();
 
 	//update possible neighbour
 	if (x == 0) {
 		if (auto westChunk = adjacentChunks[WEST].lock()) {
-			westChunk->updateChunk();
+			westChunk->buildMesh();
 		}
 	}
 	if (x == WIDTH - 1) {
 		if (auto eastChunk = adjacentChunks[EAST].lock()) {
-			eastChunk->updateChunk();
+			eastChunk->buildMesh();
 		}
 	}
 	if (z == 0) {
 		if (auto southChunk = adjacentChunks[SOUTH].lock()) {
-			southChunk->updateChunk();
+			southChunk->buildMesh();
 		}
 	}
 	if (z == DEPTH - 1) {
 		if (auto northChunk = adjacentChunks[NORTH].lock()) {
-			northChunk->updateChunk();
+			northChunk->buildMesh();
 		}
 	}
 }
@@ -342,7 +338,12 @@ bool Chunk::isBlockVisible(glm::ivec3 pos) {
 
 
 void Chunk::buildMesh() {
-    meshVertices.clear();
+	buildMeshData();
+	uploadMesh();
+}
+
+void Chunk::buildMeshData() {
+	meshVertices.clear();
 	std::vector<BlockType> blockTypeVector;	// unpacked block indices
 
     // Decode palette indices to block types
@@ -402,7 +403,9 @@ void Chunk::buildMesh() {
             }
         }
     }
+}
 
+void Chunk::uploadMesh() {
     // Upload mesh to OpenGL (unchanged)
     if (VAO == 0)
         glGenVertexArrays(1, &VAO);
@@ -512,12 +515,6 @@ void Chunk::addFace(int x, int y, int z, int face) {
         meshVertices.push_back(normal.y);
         meshVertices.push_back(normal.z);
     }
-}
-
-void Chunk::updateChunk()
-{
-	buildMesh();
-	m_needsUpdate = false;
 }
 
 void Chunk::draw(const std::shared_ptr<Shader>& shader) const {
