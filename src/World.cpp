@@ -57,18 +57,26 @@ BlockType World::getBlockWorld(glm::ivec3 globalCoords)
 	return currChunk->getBlock(x, y, z);
 }
 
-void World::setBlockWorld(glm::ivec3 globalCoords, BlockType type)
+void World::setBlockWorld(glm::ivec3 globalCoords, std::optional<glm::ivec3> faceNormal, BlockType type)
 {
-	int x, y, z;
-	int chunkX, chunkZ;
-	globalCoordsToLocalCoords(x, y, z, globalCoords.x, globalCoords.y, globalCoords.z, chunkX, chunkZ);
+    // Offset the global coordinates in the direction of the face normal
+    glm::ivec3 targetCoords = globalCoords;
+    if (faceNormal.has_value()) {
+        targetCoords += *faceNormal;
+    }
 
-	auto it = chunks.find(std::make_pair(chunkX, chunkZ));
-	if (it == chunks.end())
-		return ;
+    int x, y, z;
+    int chunkX, chunkZ;
+    globalCoordsToLocalCoords(x, y, z, 
+        targetCoords.x, targetCoords.y, targetCoords.z, 
+        chunkX, chunkZ);
 
-	std::shared_ptr<Chunk> currChunk = it->second;
-	return currChunk->setBlock(x, y, z, type);
+    auto it = chunks.find(std::make_pair(chunkX, chunkZ));
+    if (it == chunks.end())
+        return;
+
+    std::shared_ptr<Chunk> currChunk = it->second;
+    currChunk->setBlock(x, y, z, type);
 }
 
 bool World::isBlockVisibleWorld(glm::ivec3 globalCoords)

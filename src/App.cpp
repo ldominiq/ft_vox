@@ -356,6 +356,7 @@ void App::processInput() {
     static bool f2Held  = false;
     static bool f3Held  = false;
     static bool leftMousePressedLastFrame = false;
+	static bool rightMousePressedLastFrame = false;
 
 	//reload chunk. F3 + A;
 	if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS &&
@@ -455,12 +456,19 @@ void App::processInput() {
     }
 
     // Left click: remove targeted block.  Only handle this if the UI isn’t capturing the mouse.
-    if (!capturingMouse) {
-        int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-        if (state == GLFW_PRESS && !leftMousePressedLastFrame)
-            camera->removeTargettedBlock(world);
-        leftMousePressedLastFrame = (state == GLFW_PRESS);
-    }
+	if (!capturingMouse) {
+		// Left click: remove targeted block
+		int leftState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+		if (leftState == GLFW_PRESS && !leftMousePressedLastFrame)
+			camera->removeTargettedBlock(world);
+		leftMousePressedLastFrame = (leftState == GLFW_PRESS);
+
+		// Right click: place targeted block
+		int rightState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT);
+		if (rightState == GLFW_PRESS && !rightMousePressedLastFrame)
+			camera->setTargettedBlock(world);
+		rightMousePressedLastFrame = (rightState == GLFW_PRESS);
+	}
 
     // Exit (ESC).  Allow closing window even when ImGui doesn’t want keyboard.
     if (glfwGetKey(window, controlsArray[CLOSE_WINDOW]) == GLFW_PRESS)

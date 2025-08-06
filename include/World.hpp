@@ -15,6 +15,7 @@
 #include <future>
 #include <fstream>
 #include <filesystem>
+#include <optional>
 
 using ChunkPos = std::pair<int, int>; // (chunkX, chunkZ)
 
@@ -69,7 +70,7 @@ public:
 	void globalCoordsToLocalCoords(int &x, int &y, int &z, int globalX, int globalY, int globalZ, int &chunkX, int &chunkZ);
     std::shared_ptr<Chunk> getChunk(int chunkX, int chunkZ);
 	BlockType getBlockWorld(glm::ivec3 globalCoords); //unused for now
-	void setBlockWorld(glm::ivec3 globalCoords, BlockType type);
+	void setBlockWorld(glm::ivec3 globalCoords, std::optional<glm::ivec3> faceNormal, BlockType type);
 	bool isBlockVisibleWorld(glm::ivec3 globalCoords);
 
 	void saveRegionsOnExit();
