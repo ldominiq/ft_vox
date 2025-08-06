@@ -7,8 +7,8 @@
 World::World() {
 	std::filesystem::create_directories("region");
     std::mt19937 rng(time(nullptr));
-    SEED = rng();
-    std::cout << "World seed: " << SEED << std::endl;
+    terrainParams.seed = rng();
+    std::cout << "World seed: " << terrainParams.seed << std::endl;
 }
 
 World::~World() {
@@ -179,7 +179,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
                 if (generationFutures.size() < maxConcurrentGeneration) {
                     generatingChunks.insert(key);
                     generationFutures.push_back(std::async(std::launch::async, [=]() {
-                        std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz, SEED);
+                        std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz, terrainParams);
                         return std::make_pair(key, newChunk);
                     }));
                 }
@@ -340,7 +340,7 @@ void World::loadRegion(int regionX, int regionZ) {
             in.seekg(chunkPos, std::ios::beg);
 
             // 4. Load chunk data
-            std::shared_ptr<Chunk> chunk = std::make_shared<Chunk>(regionX + cx, regionZ + cz, false);
+            std::shared_ptr<Chunk> chunk = std::make_shared<Chunk>(regionX + cx, regionZ + cz, terrainParams, false);
             chunk->loadFromStream(in);
 
             // 5. Insert into world map

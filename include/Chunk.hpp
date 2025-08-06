@@ -21,6 +21,7 @@
 
 #include "Block.hpp"
 #include "BitPackedArray.hpp"
+#include "TerrainParams.hpp"
 
 class World;
 class BlockStorage;
@@ -41,22 +42,6 @@ struct Worm {
 	Worm(const glm::vec3& p, float r, int s)
 		: pos(p), radius(r), steps(s) {}
 
-};
-
-// ==BIOME PARAMETERS==
-// scaleX/scaleZ = how stretched the biome is
-// amplitude = how high the terrain will be
-// offset = how much the terrain is offset from 0
-// blendMin/blendMax = how much the biome blends with the next one
-// topBlock = the block type at the top of the biome
-struct BiomeParams {
-    float scaleX, scaleZ;
-    float amplitude;
-    float offset;
-    float blendMin, blendMax;
-    BlockType topBlock;
-	bool useBaseNoise;
-	
 };
 
 enum Direction {
@@ -82,11 +67,11 @@ public:
 	static constexpr int DEPTH = 16; // Depth of the chunck in blocks
     static constexpr int BLOCK_COUNT = WIDTH * HEIGHT * DEPTH;
 
-    Chunk(const int chunkX, const int chunkZ, int seed, const bool doGenerate = true);
+    Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate = true);
 	Chunk() = default;
     
     void carveWorm(Worm& worm, BlockStorage &blocks);
-    void generate();
+    void generate(const TerrainGenerationParams& params);
 
     BlockType getBlock(int x, int y, int z) const;
 	void setBlock(int x, int y, int z, BlockType block);
@@ -107,7 +92,8 @@ public:
 	BlockType selectBlockType(int y, int surfaceHeight, float blend, const std::vector<BiomeParams>& biomes, const std::vector<float>& weights, const std::vector<float>& heights);
 
 private:
-	int SEED;
+	TerrainGenerationParams currentParams;
+
 	bool m_needsUpdate = true;
 	std::weak_ptr<Chunk> adjacentChunks[4] = {};
 

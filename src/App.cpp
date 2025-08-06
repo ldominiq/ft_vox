@@ -218,6 +218,8 @@ void App::debugWindow() {
         // visible.  When uiInteractive is true the window captures input and
         // the mouse is released.
         {
+            auto& params = world->getTerrainParams();
+
             ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
             if (!uiInteractive) {
                 flags |= ImGuiWindowFlags_NoInputs;
@@ -235,6 +237,7 @@ void App::debugWindow() {
                 const size_t visibleChunks = world->getRenderedChunkCount();
                 const size_t totalChunks   = world->getTotalChunkCount();
                 ImGui::Text("Chunks: %zu visible / %zu total", visibleChunks, totalChunks);
+                ImGui::Text("World SEED: %i", params.seed);
             }
             // Display memory usage in megabytes.  We call a static helper to
             // obtain the current resident set size (RSS).
@@ -243,6 +246,44 @@ void App::debugWindow() {
                 const double memMB = memBytes / (1024.0 * 1024.0);
                 ImGui::Text("Memory: %.2f MB", memMB);
             }
+
+            ImGui::Separator();
+
+            if (ImGui::CollapsingHeader("Terrain Generation")) {
+
+                bool paramsChanged = false;
+
+                // Seed control
+                if (ImGui::InputInt("Seed", &params.seed)) {
+                    paramsChanged = true;
+                }
+
+                // Noise frequencies
+                ImGui::Separator();
+                ImGui::Text("Noise Frequencies");
+                paramsChanged |= ImGui::SliderFloat("Biome Noise", &params.biomeNoiseFreq, 0.0001f, 0.01f, "%.6f");
+                paramsChanged |= ImGui::SliderFloat("Base Noise", &params.baseNoiseFreq, 0.001f, 0.1f, "%.4f");
+                paramsChanged |= ImGui::SliderFloat("Detail Noise", &params.detailNoiseFreq, 0.01f, 1.0f, "%.3f");
+
+                // Biome editing
+                ImGui::Separator();
+                ImGui::Text("Biomes");
+                for (size_t i = 0; i < params.biomes.size(); ++i) {
+                    if (ImGui::TreeNode(("Biome " + std::to_string(i)).c_str())) {
+                        auto& biome = params.biomes[i];
+                        paramsChanged |= ImGui::SliderFloat("Scale X", &biome.scaleX, 0.1f, 5.0f);
+                        paramsChanged |= ImGui::SliderFloat("Scale Z", &biome.scaleZ, 0.1f, 5.0f);
+                        paramsChanged |= ImGui::SliderFloat("Amplitude", &biome.amplitude, 1.0f, 100.0f);
+                        paramsChanged |= ImGui::SliderFloat("Offset", &biome.offset, 0.0f, 200.0f);
+                        paramsChanged |= ImGui::SliderFloat("Blend Min", &biome.blendMin, 0.0f, 1.0f);
+                        paramsChanged |= ImGui::SliderFloat("Blend Max", &biome.blendMax, 0.0f, 1.0f);
+                        paramsChanged |= ImGui::Checkbox("Use Base Noise", &biome.useBaseNoise);
+
+                        ImGui::TreePop();
+                    }
+                }
+            }
+
 
             ImGui::Separator();
 

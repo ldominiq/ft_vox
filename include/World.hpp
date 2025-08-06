@@ -16,6 +16,8 @@
 #include <fstream>
 #include <filesystem>
 
+#include "TerrainParams.hpp"
+
 using ChunkPos = std::pair<int, int>; // (chunkX, chunkZ)
 
 static constexpr int REGION_SIZE = 32;
@@ -70,8 +72,11 @@ public:
 	void setBlockWorld(glm::ivec3 globalCoords, BlockType type);
 	bool isBlockVisibleWorld(glm::ivec3 globalCoords);
 
+    // Terrain params for ImGui
+    TerrainGenerationParams& getTerrainParams() { return terrainParams;}
+
 private:
-    int SEED = 1337; // Seed for the world generation, can be changed at runtime
+    TerrainGenerationParams terrainParams;
 
     std::unordered_map<ChunkPos, std::shared_ptr<Chunk>> chunks;
     std::vector<std::weak_ptr<Chunk>> renderedChunks;

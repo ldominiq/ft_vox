@@ -41,12 +41,12 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
 }
 
 
-Chunk::Chunk(const int chunkX, const int chunkZ, int seed, const bool doGenerate) 
+Chunk::Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate)
     : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH),
-      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4), SEED(seed)  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
+      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4), currentParams(params)  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
 {
 	if (doGenerate)
-    	generate();
+    	generate(params);
 }
 
 bool Chunk::needsUpdate() const {
@@ -110,25 +110,24 @@ void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
     }
 }
 
-void Chunk::generate() {
+void Chunk::generate(const TerrainGenerationParams& params) {
     FastNoiseLite biomeNoise;
-    //TODO: add SEED to imgui
-    biomeNoise.SetSeed(SEED);
+    biomeNoise.SetSeed(params.seed);
     biomeNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    biomeNoise.SetFrequency(0.001f); // low = large biomes
+    biomeNoise.SetFrequency(params.biomeNoiseFreq); // low = large biomes
 
     FastNoiseLite baseNoise;
-    baseNoise.SetSeed(SEED + 1);
+    baseNoise.SetSeed(params.seed + 1);
     baseNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    baseNoise.SetFrequency(0.02f); // standard terrain noise
+    baseNoise.SetFrequency(params.baseNoiseFreq); // standard terrain noise
 
     FastNoiseLite detailNoise;
-    detailNoise.SetSeed(SEED + 2);
+    detailNoise.SetSeed(params.seed + 2);
     detailNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    detailNoise.SetFrequency(0.1f);
+    detailNoise.SetFrequency(params.detailNoiseFreq); // high = more details
 
     FastNoiseLite warp;
-    warp.SetSeed(SEED + 3);
+    warp.SetSeed(params.seed + 3);
     warp.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
     warp.SetFrequency(0.02f);
 
