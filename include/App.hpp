@@ -37,6 +37,7 @@
     X(TOGGLE_FULLSCREEN)	\
     X(TOGGLE_WIREFRAME)		\
     X(TOGGLE_SHADER)		\
+    X(TOGGLE_DEBUG)			\
     X(CLOSE_WINDOW)			\
 
 enum controls {
@@ -67,6 +68,8 @@ private:
     void loadControlsDefaults();
 	void saveControls(const char* filename = "controls.cfg");
 	void loadControlsFromFile(const char* filename = "controls.cfg");
+
+	void debugWindow();
 
     unsigned int VAO, VBO, EBO, shaderProgram, texture;
 
@@ -131,6 +134,7 @@ private:
     bool uiInteractive = false;
     // Internal flag to handle key debounce for toggling the interactive mode.
     bool uiToggleHeld = false;
+	bool showDebugWindow = true;
 
 	//keeps track of control GLFW values
     int controlsArray[CONTROL_COUNT];
