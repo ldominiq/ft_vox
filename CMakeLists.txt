@@ -8,6 +8,8 @@ include(FetchContent)
 # Glad
 add_library(glad glad/src/glad.c)
 target_include_directories(glad PUBLIC glad/include)
+set_target_properties(glad PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 
 # GLFW
 FetchContent_Declare(
@@ -40,6 +42,11 @@ FetchContent_Declare(
   GIT_TAG master
 )
 FetchContent_MakeAvailable(stb)
+
+if(ASAN)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g -O1")
+    set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fsanitize=address")
+endif()
 
 # imgui
 FetchContent_Declare(
@@ -86,7 +93,8 @@ target_include_directories(imgui PUBLIC
 # Also link against dl on Linux for dynamic loading (glad/glfw handle OpenGL loader)
 target_link_libraries(imgui PUBLIC glfw ${CMAKE_DL_LIBS})
 
-add_executable(${PROJECT_NAME} ${SRC})
+add_executable(${PROJECT_NAME} ${SRC}
+        include/TerrainParams.hpp)
 
 # Modified shader files are now always copied to build folder now when modified
 file(GLOB_RECURSE SHADER_FILES

@@ -15,13 +15,44 @@ GLFWwindow* window;
 
 static unsigned int loadTexture(const char* path);
 
-App::App(): VAO(0), VBO(0), EBO(0), shaderProgram(0), texture(0), camera(nullptr), monitor(nullptr), mode(nullptr),
-            chunk(nullptr),
+App::App(): VAO(0),
+			VBO(0),
+			EBO(0),
+
+			shaderProgram(0),
+			texture(0),
+
+			camera(nullptr),
+			monitor(nullptr),
+			mode(nullptr),
+
             world(nullptr),
             skybox(nullptr),
             textureShader(nullptr),
             gradientShader(nullptr),
             activeShader(nullptr) {
+    // Pre-allocate the FPS sample buffer to avoid reallocations at runtime
+    fpsSamples.reserve(fpsSampleCount);
+}
+
+App::App(int seed): VAO(0),
+			VBO(0),
+			EBO(0),
+
+			shaderProgram(0),
+			texture(0),
+
+			camera(nullptr),
+			monitor(nullptr),
+			mode(nullptr),
+
+            world(nullptr),
+            skybox(nullptr),
+            textureShader(nullptr),
+            gradientShader(nullptr),
+            activeShader(nullptr),
+			
+			seed(seed) {
     // Pre-allocate the FPS sample buffer to avoid reallocations at runtime
     fpsSamples.reserve(fpsSampleCount);
 }
@@ -57,9 +88,10 @@ void App::init() {
         "assets/skybox/back.bmp"    // -Z
     };
 
-    skybox = new Skybox(faces);
+	skybox = std::make_unique<Skybox>(faces);
 
-    world = new World();
+	if (seed.has_value()) world = std::make_unique<World>(seed.value());
+    else world = std::make_unique<World>();
     
     glEnable(GL_DEPTH_TEST);
     
@@ -71,7 +103,7 @@ void App::init() {
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
     // Mouse movement event handling
-    camera = new Camera(glm::vec3(-3.0f, 32.0f, 0.0f));
+    camera = std::make_unique<Camera>(glm::vec3(0.0f, 128.0f, 0.0f));
     glfwSetWindowUserPointer(window, this);
     glfwSetCursorPosCallback(window, [](GLFWwindow* w, const double xpos, const double ypos) {
         static App* app = static_cast<App*>(glfwGetWindowUserPointer(w));
@@ -79,7 +111,7 @@ void App::init() {
         // Honour ImGui’s mouse capture: if the UI is being interacted with
         // (e.g. hovering/clicking in a window), do not rotate the camera.
         ImGuiIO& io = ImGui::GetIO();
-        if (io.WantCaptureMouse) {
+        if (io.WantCaptureMouse || app->uiInteractive) {
             return;
         }
         if (app->firstMouse) {
@@ -115,9 +147,9 @@ void App::init() {
 void App::loadResources() {
     // Load shaders and textures
 
-    textureShader = new Shader("shaders/simple.vert", "shaders/simple.frag");
-    gradientShader = new Shader("shaders/gradient.vert", "shaders/gradient.frag");
-    texture = loadTexture("assets/textures/spritesheet3.png");
+    textureShader = std::make_shared<Shader>("shaders/simple.vert", "shaders/simple.frag");
+    gradientShader = std::make_shared<Shader>("shaders/gradient.vert", "shaders/gradient.frag");
+    texture = loadTexture("assets/textures/textures.png");
 
     activeShader = textureShader;
 
@@ -195,12 +227,31 @@ void App::render() {
         skybox->draw(camera->getViewMatrix(), projection);
         camera->drawWireframeSelectedBlockFace(world, view, projection);
 
+        if (showDebugWindow) {
+            //ImGui::ShowDemoWindow();
+            debugWindow();
+        }
+
+        // Finalize the ImGui frame and draw it.  Even if the overlay is
+        // non-interactive the draw data will be present, so draw it always.
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        // Swap buffers and poll events (keys pressed, mouse movement, etc.)
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+}
+
+void App::debugWindow() {
         // Build the ImGui UI.  We always draw the debug overlay.  When
         // uiInteractive is false we disable input on the window, allowing
         // the player to interact with the game while the overlay remains
         // visible.  When uiInteractive is true the window captures input and
         // the mouse is released.
         {
+            auto& params = world->getTerrainParams();
+
             ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
             if (!uiInteractive) {
                 flags |= ImGuiWindowFlags_NoInputs;
@@ -212,6 +263,25 @@ void App::render() {
             ImGui::Text("FPS: %.1f (%.3f ms)", uiDisplayFPS, uiDisplayFPS > 0.0f ? 1000.0f / uiDisplayFPS : 0.0f);
             // Display camera coordinates
             ImGui::Text("Camera Position: x=%.2f y=%.2f z=%.2f", camera->Position.x, camera->Position.y, camera->Position.z);
+
+            ImGui::Text("World SEED: %i", params.seed);
+
+            // Additional metrics: number of loaded chunks and approximate memory usage
+            if (world) {
+                const size_t visibleChunks = world->getRenderedChunkCount();
+                const size_t totalChunks   = world->getTotalChunkCount();
+                ImGui::Text("Chunks: %zu visible / %zu total", visibleChunks, totalChunks);
+            }
+            // Display memory usage in megabytes.  We call a static helper to
+            // obtain the current resident set size (RSS).
+            {
+                const size_t memBytes = getCurrentRSS();
+                const double memMB = memBytes / (1024.0 * 1024.0);
+                ImGui::Text("Memory: %.2f MB", memMB);
+            }
+
+            ImGui::Separator();
+
             // Wireframe toggle
             if (ImGui::Checkbox("Wireframe", &wireframe)) {
                 glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
@@ -220,8 +290,8 @@ void App::render() {
             if (ImGui::Checkbox("Use Gradient Shader", &useGradientShader)) {
                 activeShader = useGradientShader ? gradientShader : textureShader;
             }
-            // Render distance slider.  Changing this will update the far clipping plane.
-            ImGui::SliderFloat("Render Distance", &renderDistance, 100.0f, 2000.0f);
+            // Changing this will update the far clipping plane.
+            ImGui::SliderFloat("Clipping plane Distance", &renderDistance, 100.0f, 2000.0f);
             // Adjust the chunk loading radius.  Casting to int and back avoids
             // accidental type issues in the setter.  We clamp the range to a
             // reasonable minimum and maximum.
@@ -244,39 +314,19 @@ void App::render() {
             // Lighting controls: direction and colours.  The direction vector
             // components are clamped to [-1,1]; colours use a colour picker.
             ImGui::Separator();
-            ImGui::Text("Lighting Controls");
-            ImGui::SliderFloat3("Light Direction", &lightDir.x, -1.0f, 1.0f);
-            ImGui::ColorEdit3("Light Colour", &lightColor.x);
-            ImGui::ColorEdit3("Ambient Colour", &ambientColor.x);
+            if (ImGui::CollapsingHeader("Lighting")) {
+                ImGui::Text("Lighting Controls");
+                ImGui::SliderFloat3("Light Direction", &lightDir.x, -1.0f, 1.0f);
+                ImGui::ColorEdit3("Light Colour", &lightColor.x);
+                ImGui::ColorEdit3("Ambient Colour", &ambientColor.x);
+            }
 
-            // Additional metrics: number of loaded chunks and approximate memory usage
-            ImGui::Separator();
-            if (world) {
-                const size_t visibleChunks = world->getRenderedChunkCount();
-                const size_t totalChunks   = world->getTotalChunkCount();
-                ImGui::Text("Chunks: %zu visible / %zu total", visibleChunks, totalChunks);
-            }
-            // Display memory usage in megabytes.  We call a static helper to
-            // obtain the current resident set size (RSS).
-            {
-                const size_t memBytes = getCurrentRSS();
-                const double memMB = memBytes / (1024.0 * 1024.0);
-                ImGui::Text("Memory: %.2f MB", memMB);
-            }
+
             ImGui::End();
             if (!uiInteractive) {
                 ImGui::PopStyleVar();
             }
         }
-        // Finalize the ImGui frame and draw it.  Even if the overlay is
-        // non-interactive the draw data will be present, so draw it always.
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        // Swap buffers and poll events (keys pressed, mouse movement, etc.)
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-    }
 }
 
 void App::run() {
@@ -286,6 +336,9 @@ void App::run() {
 }
 
 void App::cleanup() {
+
+	saveWorldOnExit();
+
     // Shutdown ImGui before terminating GLFW
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -296,18 +349,19 @@ void App::cleanup() {
 }
 
 void App::loadControlsDefaults() {
-    controlsArray[FORWARD]         = GLFW_KEY_W;
-    controlsArray[BACKWARD]        = GLFW_KEY_S;
-    controlsArray[LEFT]            = GLFW_KEY_A;
-    controlsArray[RIGHT]           = GLFW_KEY_D;
-    controlsArray[UP]              = GLFW_KEY_E;
-    controlsArray[DOWN]            = GLFW_KEY_Q;
-    controlsArray[LEFT_CLICK]      = GLFW_MOUSE_BUTTON_LEFT;
-    controlsArray[TOGGLE_FULLSCREEN] = GLFW_KEY_F11;
-    controlsArray[TOGGLE_WIREFRAME]  = GLFW_KEY_F1;
-    controlsArray[TOGGLE_SHADER]     = GLFW_KEY_F2;
-    controlsArray[MOVE_FAST]         = GLFW_KEY_LEFT_SHIFT;
-    controlsArray[CLOSE_WINDOW]      = GLFW_KEY_ESCAPE;
+	controlsArray[FORWARD]				= GLFW_KEY_W;
+	controlsArray[BACKWARD]        		= GLFW_KEY_S;
+	controlsArray[LEFT]					= GLFW_KEY_A;
+	controlsArray[RIGHT]				= GLFW_KEY_D;
+    controlsArray[UP]					= GLFW_KEY_E;
+    controlsArray[DOWN]					= GLFW_KEY_Q;
+    controlsArray[LEFT_CLICK]			= GLFW_MOUSE_BUTTON_LEFT;
+    controlsArray[TOGGLE_FULLSCREEN]	= GLFW_KEY_F11;
+    controlsArray[TOGGLE_WIREFRAME]		= GLFW_KEY_F1;
+    controlsArray[TOGGLE_SHADER]		= GLFW_KEY_F2;
+    controlsArray[TOGGLE_DEBUG]			= GLFW_KEY_TAB;
+    controlsArray[MOVE_FAST]			= GLFW_KEY_LEFT_SHIFT;
+    controlsArray[CLOSE_WINDOW]			= GLFW_KEY_ESCAPE;
 }
 
 void App::loadControlsFromFile(const char* filename) {
@@ -351,21 +405,44 @@ void App::processInput() {
     static bool f11Held = false;
     static bool f1Held  = false;
     static bool f2Held  = false;
-    static bool f3Held  = false;
+    static bool f4Held  = false;
+    static bool tabHeld = false;
     static bool leftMousePressedLastFrame = false;
+	static bool rightMousePressedLastFrame = false;
 
-    // Start by getting the ImGui IO structure.  We will respect its capture flags
-    // when deciding whether to process game inputs.  Note: this call is valid
-    // even if ImGui hasn’t been initialised in the current frame yet.
-    ImGuiIO& io = ImGui::GetIO();
+	//reload chunk. F3 + A;
+	if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS &&
+    	glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		for (auto &chunkPtr : world->getRenderedChunks())
+		{
+			if (auto chunk = chunkPtr.lock())
+				chunk->buildMesh();
+		}
+		return;
+	}
 
-    // Toggle interactive debug mode with F3.  We debounce the key to avoid
+    // Show/Hide debug window
+    if (glfwGetKey(window, controlsArray[TOGGLE_DEBUG]) == GLFW_PRESS && !tabHeld) {
+        showDebugWindow = !showDebugWindow;
+        tabHeld = true;
+
+        if (!showDebugWindow && uiInteractive) {
+            uiInteractive = false;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            firstMouse = true;
+        }
+    }
+    if (glfwGetKey(window, controlsArray[TOGGLE_DEBUG]) == GLFW_RELEASE) {
+        tabHeld = false;
+    }
+
+    // Toggle interactive mode with F4.  We debounce the key to avoid
     // multiple toggles per press.  When uiInteractive is true we release
     // the mouse and ImGui windows will capture input.  When false we
     // recapture the mouse and treat the debug window as an overlay only.
-    if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS && !f3Held) {
+    if (glfwGetKey(window, GLFW_KEY_F4) == GLFW_PRESS && !f4Held) {
         uiInteractive = !uiInteractive;
-        f3Held = true;
+        f4Held = true;
         if (uiInteractive) {
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         } else {
@@ -373,9 +450,14 @@ void App::processInput() {
             firstMouse = true;
         }
     }
-    if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_RELEASE) {
-        f3Held = false;
+    if (glfwGetKey(window, GLFW_KEY_F4) == GLFW_RELEASE) {
+        f4Held = false;
     }
+
+    // Start by getting the ImGui IO structure.  We will respect its capture flags
+    // when deciding whether to process game inputs.  Note: this call is valid
+    // even if ImGui hasn’t been initialised in the current frame yet.
+    ImGuiIO& io = ImGui::GetIO();
 
     // Determine whether game input should be suppressed.  When uiInteractive
     // is false the overlay is visible but non-interactive, so we never
@@ -435,18 +517,25 @@ void App::processInput() {
 
         // Move faster
         if (glfwGetKey(window, controlsArray[MOVE_FAST]) == GLFW_PRESS)
-            camera->MovementSpeed = 20.0f;
+            camera->MovementSpeed = 100.0f;
         if (glfwGetKey(window, controlsArray[MOVE_FAST]) == GLFW_RELEASE)
-            camera->MovementSpeed = 2.0f;
+            camera->MovementSpeed = 5.0f;
     }
 
     // Left click: remove targeted block.  Only handle this if the UI isn’t capturing the mouse.
-    if (!capturingMouse) {
-        int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-        if (state == GLFW_PRESS && !leftMousePressedLastFrame)
-            camera->removeTargettedBlock(world);
-        leftMousePressedLastFrame = (state == GLFW_PRESS);
-    }
+	if (!capturingMouse) {
+		// Left click: remove targeted block
+		int leftState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+		if (leftState == GLFW_PRESS && !leftMousePressedLastFrame)
+			camera->removeTargettedBlock(world);
+		leftMousePressedLastFrame = (leftState == GLFW_PRESS);
+
+		// Right click: place targeted block
+		int rightState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT);
+		if (rightState == GLFW_PRESS && !rightMousePressedLastFrame)
+			camera->setTargettedBlock(world);
+		rightMousePressedLastFrame = (rightState == GLFW_PRESS);
+	}
 
     // Exit (ESC).  Allow closing window even when ImGui doesn’t want keyboard.
     if (glfwGetKey(window, controlsArray[CLOSE_WINDOW]) == GLFW_PRESS)
@@ -543,4 +632,9 @@ size_t App::getCurrentRSS() {
 #else
     return 0;
 #endif
+}
+
+void App::saveWorldOnExit()
+{
+	world->saveRegionsOnExit();
 }

@@ -1,0 +1,7 @@
+# CHUNK GENERATION
+
+## Steps:  
+  
+  1.  World creates and keeps track of chunks (calling constructor).
+  2.  Chunk constructor calls **GENERATE()** function.
+  2. Once all adjecent chunks are generated, World calls **updateChunk()** on chunk. Which renders it.

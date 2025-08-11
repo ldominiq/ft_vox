@@ -8,8 +8,8 @@ enum class BlockType {
     DIRT,
     STONE,
     SAND,
-    SNOW
-
+    SNOW,
+    WATER
 };
 
 struct Voxel {

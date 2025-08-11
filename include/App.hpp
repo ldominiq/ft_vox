@@ -20,6 +20,7 @@
 #include <iostream>
 // glm for vector types used in lighting controls
 #include <glm/vec3.hpp>
+#include <memory>
 // #include <glm/glm.hpp>
 // #include <glm/gtc/matrix_transform.hpp>
 // #include <glm/gtc/type_ptr.hpp>
@@ -36,7 +37,8 @@
     X(TOGGLE_FULLSCREEN)	\
     X(TOGGLE_WIREFRAME)		\
     X(TOGGLE_SHADER)		\
-    X(CLOSE_WINDOW)
+    X(TOGGLE_DEBUG)			\
+    X(CLOSE_WINDOW)			\
 
 enum controls {
 #define X(name) name,
@@ -49,6 +51,7 @@ enum controls {
 class App {
 public:
     App();
+	App(int seed);
     ~App();
 
     void run();
@@ -67,6 +70,12 @@ private:
 	void saveControls(const char* filename = "controls.cfg");
 	void loadControlsFromFile(const char* filename = "controls.cfg");
 
+
+	void saveWorldOnExit();
+
+	void debugWindow();
+
+
     unsigned int VAO, VBO, EBO, shaderProgram, texture;
 
     enum class DisplayMode {
@@ -75,28 +84,27 @@ private:
     };
     DisplayMode displayMode = DisplayMode::Windowed;
 
-    Camera* camera;
-    GLFWmonitor* monitor;
+    std::unique_ptr<Camera> camera;
+	GLFWmonitor* monitor;
     const GLFWvidmode* mode;
-    Chunk* chunk;
-    World* world;
-    Skybox* skybox;
-    Shader* textureShader;
-    Shader* gradientShader;
-    Shader* activeShader;   // pointer to the currently active shader program
+
+    std::unique_ptr<World> world;
+    std::unique_ptr<Skybox> skybox;
+    std::shared_ptr<Shader> textureShader;
+    std::shared_ptr<Shader> gradientShader;
+    std::shared_ptr<Shader> activeShader;   // pointer to the currently active shader program
+
+	std::optional<int> seed;
 
     float lastX = 400, lastY = 300;
     bool firstMouse = true;
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
 
-
     bool wireframe = false;
-
 
     float lastTitleUpdate = 0.0f;
     int frameCount = 0;
-
 
     int windowedX = 100;
     int windowedY = 100;
@@ -130,6 +138,7 @@ private:
     bool uiInteractive = false;
     // Internal flag to handle key debounce for toggling the interactive mode.
     bool uiToggleHeld = false;
+	bool showDebugWindow = true;
 
 	//keeps track of control GLFW values
     int controlsArray[CONTROL_COUNT];
