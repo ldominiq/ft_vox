@@ -15,6 +15,7 @@
 #include <future>
 #include <fstream>
 #include <filesystem>
+#include <optional>
 
 #include "TerrainParams.hpp"
 
@@ -29,15 +30,17 @@ struct std::hash<ChunkPos> {
     }
 };
 
-struct RegionFileHeader {
+struct RegionFileMetadata {
     char magic[4] = {'R','G','N','1'};
     std::uint32_t version = 1;
     std::uint32_t regionSize = REGION_SIZE;
 };
 
 struct ChunkEntry {
-    std::uint32_t offset = 0;
-    std::uint32_t size = 0;
+	std::uint32_t X;
+	std::uint32_t Z;
+    std::uint32_t offset;
+    std::uint32_t size;
 };
 
 class World {
@@ -69,14 +72,20 @@ public:
 	void globalCoordsToLocalCoords(int &x, int &y, int &z, int globalX, int globalY, int globalZ, int &chunkX, int &chunkZ);
     std::shared_ptr<Chunk> getChunk(int chunkX, int chunkZ);
 	BlockType getBlockWorld(glm::ivec3 globalCoords); //unused for now
-	void setBlockWorld(glm::ivec3 globalCoords, BlockType type);
+	void setBlockWorld(glm::ivec3 globalCoords, std::optional<glm::ivec3> faceNormal, BlockType type);
 	bool isBlockVisibleWorld(glm::ivec3 globalCoords);
 
+	void saveRegionsOnExit();
     // Terrain params for ImGui
     TerrainGenerationParams& getTerrainParams() { return terrainParams;}
 
 private:
     TerrainGenerationParams terrainParams;
+
+	inline int floorDiv(int value, int divisor) {
+		if (value >= 0) return value / divisor;
+		return (value - divisor + 1) / divisor; // floor division for negatives
+	}
 
     std::unordered_map<ChunkPos, std::shared_ptr<Chunk>> chunks;
     std::vector<std::weak_ptr<Chunk>> renderedChunks;
@@ -87,7 +96,7 @@ private:
 
     // Maximum number of chunk futures to process (integrate into the world)
     // per updateVisibleChunks() call.  Limiting this reduces frame spikes.
-    std::size_t maxChunkProcessPerFrame = 1000;
+    // std::size_t maxChunkProcessPerFrame = 800000;
 
     // The radius (in chunks) around the camera in which to load chunks.  This
     // value can be changed at runtime via the UI.
@@ -97,12 +106,14 @@ private:
     // same time.  Limiting concurrency prevents CPU oversubscription and
     // reduces frame drops when many chunks need to be generated.  This
     // value can be tuned based on the number of available CPU cores.
-    std::size_t maxConcurrentGeneration = 1;
+    std::size_t maxConcurrentGeneration = 8;
 
-    void linkNeighbors(int chunkX, int chunkZ, std::shared_ptr<Chunk> &chunk);
+    std::unordered_set<ChunkPos> linkNeighbors(int chunkX, int chunkZ, std::shared_ptr<Chunk> &chunk);
     static ChunkPos toKey(int chunkX, int chunkZ);
 
-	void saveRegion(int regionX, int regionZ) const;
+	std::unordered_set<ChunkPos> loadedRegions;
+	void updateRegionStreaming(int currentChunkX, int currentChunkZ);
+	void saveRegion(int regionX, int regionZ);
 	void loadRegion(int regionX, int regionZ);
 	std::string getRegionFilename(int regionX, int regionZ) const;
 };

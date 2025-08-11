@@ -69,7 +69,11 @@ private:
 	void saveControls(const char* filename = "controls.cfg");
 	void loadControlsFromFile(const char* filename = "controls.cfg");
 
+
+	void saveWorldOnExit();
+
 	void debugWindow();
+
 
     unsigned int VAO, VBO, EBO, shaderProgram, texture;
 

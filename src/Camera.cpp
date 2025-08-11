@@ -108,7 +108,14 @@ void Camera::removeTargettedBlock(std::unique_ptr<World> &world)
 {
 	glm::ivec3 blockPos, faceNormal;
 	if (getTargetedBlock(world, blockPos, faceNormal))
-		world->setBlockWorld(blockPos, BlockType::AIR);
+		world->setBlockWorld(blockPos, std::nullopt, BlockType::AIR);
+}
+
+void Camera::setTargettedBlock(std::unique_ptr<World> &world)
+{
+	glm::ivec3 blockPos, faceNormal;
+	if (getTargetedBlock(world, blockPos, faceNormal))
+		world->setBlockWorld(blockPos, faceNormal, BlockType::DIRT);
 }
 
 void Camera::initWireframeCube() {
