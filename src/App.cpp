@@ -71,7 +71,7 @@ void App::init() {
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
     // Mouse movement event handling
-    camera = std::make_unique<Camera>(glm::vec3(-3.0f, 32.0f, 0.0f));
+    camera = std::make_unique<Camera>(glm::vec3(0.0f, 128.0f, 0.0f));
     glfwSetWindowUserPointer(window, this);
     glfwSetCursorPosCallback(window, [](GLFWwindow* w, const double xpos, const double ypos) {
         static App* app = static_cast<App*>(glfwGetWindowUserPointer(w));
@@ -218,6 +218,8 @@ void App::debugWindow() {
         // visible.  When uiInteractive is true the window captures input and
         // the mouse is released.
         {
+            auto& params = world->getTerrainParams();
+
             ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
             if (!uiInteractive) {
                 flags |= ImGuiWindowFlags_NoInputs;
@@ -229,6 +231,8 @@ void App::debugWindow() {
             ImGui::Text("FPS: %.1f (%.3f ms)", uiDisplayFPS, uiDisplayFPS > 0.0f ? 1000.0f / uiDisplayFPS : 0.0f);
             // Display camera coordinates
             ImGui::Text("Camera Position: x=%.2f y=%.2f z=%.2f", camera->Position.x, camera->Position.y, camera->Position.z);
+
+            ImGui::Text("World SEED: %i", params.seed);
 
             // Additional metrics: number of loaded chunks and approximate memory usage
             if (world) {
@@ -254,8 +258,8 @@ void App::debugWindow() {
             if (ImGui::Checkbox("Use Gradient Shader", &useGradientShader)) {
                 activeShader = useGradientShader ? gradientShader : textureShader;
             }
-            // Render distance slider.  Changing this will update the far clipping plane.
-            ImGui::SliderFloat("Render Distance", &renderDistance, 100.0f, 2000.0f);
+            // Changing this will update the far clipping plane.
+            ImGui::SliderFloat("Clipping plane Distance", &renderDistance, 100.0f, 2000.0f);
             // Adjust the chunk loading radius.  Casting to int and back avoids
             // accidental type issues in the setter.  We clamp the range to a
             // reasonable minimum and maximum.

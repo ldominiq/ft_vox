@@ -62,12 +62,12 @@ static float ridged(FastNoiseLite& n, float x, float z) {
 }
 
 
-Chunk::Chunk(const int chunkX, const int chunkZ, const bool doGenerate)
+Chunk::Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate)
     : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH),
-      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4)  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
+      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4), currentParams(params)  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
 {
 	if (doGenerate)
-    	generate();
+    	generate(params);
 	else preGenerated = true;
     	
 }
@@ -130,7 +130,7 @@ void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
     }
 }
 
-void Chunk::generate() {
+void Chunk::generate(const TerrainGenerationParams& terrainParams) {
     // Noise setup
     FastNoiseLite nCont, nWarpA, nWarpB, nHills, nRidged, nTemp, nMoist;
 

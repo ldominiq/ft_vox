@@ -69,11 +69,11 @@ public:
 	const int ATLAS_COLS = 7;
 	const int ATLAS_ROWS = 1;
 
-    Chunk(const int chunkX, const int chunkZ, const bool doGenerate = true);
+    Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate = true);
 	Chunk() = default;
     
     void carveWorm(Worm& worm, BlockStorage &blocks);
-    void generate();
+    void generate(const TerrainGenerationParams& terrainParams);
 
     BlockType getBlock(int x, int y, int z) const;
 	void setBlock(int x, int y, int z, BlockType block);
@@ -98,7 +98,12 @@ public:
 
 
 private:
-	const TerrainGenerationParams terrainParams;
+	TerrainGenerationParams currentParams;
+
+	glm::ivec3 getGlobalCoords() const { return glm::ivec3(originX, 0, originZ); }
+
+	int sourceChunkX; // X coordinate of the chunk in the world
+	int sourceChunkZ; // Z coordinate of the chunk in the world
 
 	std::weak_ptr<Chunk> adjacentChunks[4] = {};
 

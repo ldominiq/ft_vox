@@ -135,7 +135,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
     const int currentChunkX = static_cast<int>(std::floor(cameraPos.x / Chunk::WIDTH));
     const int currentChunkZ = static_cast<int>(std::floor(cameraPos.z / Chunk::DEPTH));
 
-	updateRegionStreaming(currentChunkX, currentChunkZ);
+	// updateRegionStreaming(currentChunkX, currentChunkZ);
 
     // Determine which chunks we need within the circular radius.  For every
     // candidate coordinate we either mark it for generation or add it to the
@@ -176,17 +176,17 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
 
         if (!chunk && amountOfConcurrentChunksBeingGenerated < maxConcurrentGeneration) {
 				generationFutures.push_back(std::async(std::launch::async, [=]() {
-					std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz);
+					std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz, terrainParams);
 					return std::make_pair(key, newChunk);
 				}));
 			amountOfConcurrentChunksBeingGenerated++;
 		}
-		else if (chunk && chunk->preGenerated && amountOfConcurrentChunksBeingGenerated < maxConcurrentGeneration) 
-		{
-			generatingChunks.insert(key);
-			amountOfConcurrentChunksBeingGenerated++;
-			chunk->preGenerated = false;
-		}
+		// else if (chunk && chunk->preGenerated && amountOfConcurrentChunksBeingGenerated < maxConcurrentGeneration) 
+		// {
+		// 	generatingChunks.insert(key);
+		// 	amountOfConcurrentChunksBeingGenerated++;
+		// 	chunk->preGenerated = false;
+		// }
 		
 		// } else {
         //     renderedChunks.push_back(chunk);
@@ -415,7 +415,7 @@ void World::loadRegion(int regionX, int regionZ) {
 
         // Seek to the chunk data
         in.seekg(entry.offset);
-        auto chunk = std::make_shared<Chunk>(entry.X, entry.Z, false);
+        auto chunk = std::make_shared<Chunk>(entry.X, entry.Z, terrainParams, false);
         chunk->loadFromStream(in);
 
         // Insert into chunk map
