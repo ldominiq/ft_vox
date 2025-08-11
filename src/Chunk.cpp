@@ -32,6 +32,10 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
         case BlockType::WATER:
             col = 6; row = 0;
             break;
+            
+        case BlockType::BEDROCK:
+            col = 7; row = 0;
+            break;
 
         default:
             col = 0; row = 0;
@@ -279,7 +283,7 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
 
             // Bedrock-ish base
             for (int y = 0; y <= terrainParams.bedrockLevel; ++y)
-                blocks.at(x, y, z) = BlockType::STONE;
+                blocks.at(x, y, z) = BlockType::BEDROCK;
 
             // Deep stone
             for (int y = terrainParams.bedrockLevel + 1; y < surfaceY - 4; ++y)
