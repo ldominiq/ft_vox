@@ -166,7 +166,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
               });
 	
 	std::unordered_set<ChunkPos> generatingChunks;
-	uint amountOfConcurrentChunksBeeingGenerated = 0;
+	uint amountOfConcurrentChunksBeingGenerated = 0;
 
     for (const auto& [dx, dz, priority] : candidates) {
         const int cx = currentChunkX + dx;
@@ -174,17 +174,17 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
         ChunkPos key = toKey(cx, cz);
         std::shared_ptr<Chunk> chunk = getChunk(cx, cz);
 
-        if (!chunk && amountOfConcurrentChunksBeeingGenerated < maxConcurrentGeneration) {
+        if (!chunk && amountOfConcurrentChunksBeingGenerated < maxConcurrentGeneration) {
 				generationFutures.push_back(std::async(std::launch::async, [=]() {
 					std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz, terrainParams);
 					return std::make_pair(key, newChunk);
 				}));
-			amountOfConcurrentChunksBeeingGenerated++;
+			amountOfConcurrentChunksBeingGenerated++;
 		}
-		else if (chunk && chunk->preGenerated && amountOfConcurrentChunksBeeingGenerated < maxConcurrentGeneration) 
+		else if (chunk && chunk->preGenerated && amountOfConcurrentChunksBeingGenerated < maxConcurrentGeneration) 
 		{
 			generatingChunks.insert(key);
-			amountOfConcurrentChunksBeeingGenerated++;
+			amountOfConcurrentChunksBeingGenerated++;
 			chunk->preGenerated = false;
 		}
 		
