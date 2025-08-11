@@ -69,11 +69,11 @@ public:
 	const int ATLAS_COLS = 7;
 	const int ATLAS_ROWS = 1;
 
-    Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate = true);
+    Chunk(const int chunkX, const int chunkZ, const bool doGenerate = true);
 	Chunk() = default;
     
     void carveWorm(Worm& worm, BlockStorage &blocks);
-    void generate(const TerrainGenerationParams& params);
+    void generate();
 
     BlockType getBlock(int x, int y, int z) const;
 	void setBlock(int x, int y, int z, BlockType block);
@@ -98,7 +98,7 @@ public:
 
 
 private:
-	TerrainGenerationParams currentParams;
+	const TerrainGenerationParams terrainParams;
 
 	std::weak_ptr<Chunk> adjacentChunks[4] = {};
 

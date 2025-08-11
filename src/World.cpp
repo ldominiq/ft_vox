@@ -176,7 +176,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
 
         if (!chunk && amountOfConcurrentChunksBeingGenerated < maxConcurrentGeneration) {
 				generationFutures.push_back(std::async(std::launch::async, [=]() {
-					std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz, terrainParams);
+					std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz);
 					return std::make_pair(key, newChunk);
 				}));
 			amountOfConcurrentChunksBeingGenerated++;

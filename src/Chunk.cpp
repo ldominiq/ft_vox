@@ -62,19 +62,16 @@ static float ridged(FastNoiseLite& n, float x, float z) {
 }
 
 
-Chunk::Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate)
+Chunk::Chunk(const int chunkX, const int chunkZ, const bool doGenerate)
     : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH),
-      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4), currentParams(params)  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
+      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4)  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
 {
 	if (doGenerate)
-    	generate(params);
+    	generate();
 	else preGenerated = true;
     	
 }
 
-bool Chunk::needsUpdate() const {
-	return m_needsUpdate;
-}
 
 bool Chunk::hasAllAdjacentChunkLoaded() const {
     for (const auto& adj : adjacentChunks) {
@@ -133,48 +130,48 @@ void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
     }
 }
 
-void Chunk::generate(const TerrainGenerationParams& params) {
+void Chunk::generate() {
     // Noise setup
     FastNoiseLite nCont, nWarpA, nWarpB, nHills, nRidged, nTemp, nMoist;
 
     FastNoiseLite nMtnMask, nColdCell;
 
-    nMtnMask.SetSeed(params.seed + 40);
+    nMtnMask.SetSeed(terrainParams.seed + 40);
     nMtnMask.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    nMtnMask.SetFrequency(params.mtnMaskFreq);
+    nMtnMask.SetFrequency(terrainParams.mtnMaskFreq);
 
-    nColdCell.SetSeed(params.seed + 41);
+    nColdCell.SetSeed(terrainParams.seed + 41);
     nColdCell.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    nColdCell.SetFrequency(params.coldCellFreq);
+    nColdCell.SetFrequency(terrainParams.coldCellFreq);
 
 
-    nCont.SetSeed(params.seed + 11);
+    nCont.SetSeed(terrainParams.seed + 11);
     nCont.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    nCont.SetFrequency(params.continentFreq);
+    nCont.SetFrequency(terrainParams.continentFreq);
 
-    nWarpA.SetSeed(params.seed + 12);
+    nWarpA.SetSeed(terrainParams.seed + 12);
     nWarpA.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    nWarpA.SetFrequency(params.warpFreq);
+    nWarpA.SetFrequency(terrainParams.warpFreq);
 
-    nWarpB.SetSeed(params.seed + 13);
+    nWarpB.SetSeed(terrainParams.seed + 13);
     nWarpB.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    nWarpB.SetFrequency(params.warpFreq);
+    nWarpB.SetFrequency(terrainParams.warpFreq);
 
-    nHills.SetSeed(params.seed + 21);
+    nHills.SetSeed(terrainParams.seed + 21);
     nHills.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    nHills.SetFrequency(params.hillsFreq);
+    nHills.SetFrequency(terrainParams.hillsFreq);
 
-    nRidged.SetSeed(params.seed + 22);
+    nRidged.SetSeed(terrainParams.seed + 22);
     nRidged.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    nRidged.SetFrequency(params.ridgedFreq);
+    nRidged.SetFrequency(terrainParams.ridgedFreq);
 
-    nTemp.SetSeed(params.seed + 31);
+    nTemp.SetSeed(terrainParams.seed + 31);
     nTemp.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    nTemp.SetFrequency(params.tempFreq);
+    nTemp.SetFrequency(terrainParams.tempFreq);
 
-    nMoist.SetSeed(params.seed + 32);
+    nMoist.SetSeed(terrainParams.seed + 32);
     nMoist.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    nMoist.SetFrequency(params.moistFreq);
+    nMoist.SetFrequency(terrainParams.moistFreq);
 
 	BlockStorage blocks;
 
@@ -184,8 +181,8 @@ void Chunk::generate(const TerrainGenerationParams& params) {
             const float wz = float(originZ + z);
 
             // --- Domain warp to make interesting coasts ---
-            const float qx = wx + params.warpAmp * nWarpA.GetNoise(wx, wz);
-            const float qz = wz + params.warpAmp * nWarpB.GetNoise(wx + 1000.0f, wz - 1000.0f);
+            const float qx = wx + terrainParams.warpAmp * nWarpA.GetNoise(wx, wz);
+            const float qz = wz + terrainParams.warpAmp * nWarpB.GetNoise(wx + 1000.0f, wz - 1000.0f);
 
             // --- Continentalness and base uplift ---
             float c = 0.5f * (nCont.GetNoise(qx, qz) + 1.0f);
@@ -194,8 +191,8 @@ void Chunk::generate(const TerrainGenerationParams& params) {
 
             // --- Determine mountain regions (mask) ---
             float mMaskRaw  = 0.5f * (nMtnMask.GetNoise(qx + 777.0f, qz - 333.0f) + 1.0f);
-            float mMask     = glm::smoothstep(params.mtnMaskThreshold - params.mtnMaskSharpness,
-                                              params.mtnMaskThreshold + params.mtnMaskSharpness,
+            float mMask     = glm::smoothstep(terrainParams.mtnMaskThreshold - terrainParams.mtnMaskSharpness,
+                                              terrainParams.mtnMaskThreshold + terrainParams.mtnMaskSharpness,
                                               mMaskRaw);
             // mMask ~0 => plains region; ~1 => mountain region
 
@@ -206,10 +203,10 @@ void Chunk::generate(const TerrainGenerationParams& params) {
             // Flatter outside mountain regions; real relief only where mMask≈1
             float elevation =
                 baseShift
-              + (1.0f - mMask) * (params.plainsHillsAmp * hills)   // gentle undulation in plains
-              + mMask * (params.mtnBase + params.mtnAmp * mtn);         // mountains only in mountain regions
+              + (1.0f - mMask) * (terrainParams.plainsHillsAmp * hills)   // gentle undulation in plains
+              + mMask * (terrainParams.mtnBase + terrainParams.mtnAmp * mtn);         // mountains only in mountain regions
 
-            int surfaceY = int(std::round(float(params.seaLevel) + elevation));
+            int surfaceY = int(std::round(float(terrainParams.seaLevel) + elevation));
             surfaceY = glm::clamp(surfaceY, 1, HEIGHT - 2);
 
 
@@ -220,16 +217,16 @@ void Chunk::generate(const TerrainGenerationParams& params) {
 
             // Large cold regions to allow snowy plains at LOW altitude
             float coldCell = 0.5f * (nColdCell.GetNoise(wx - 2000.0f, wz + 500.0f) + 1.0f); // 0..1
-            baseTemp = glm::clamp(baseTemp - params.coldCellStrength * coldCell, 0.0f, 1.0f);
+            baseTemp = glm::clamp(baseTemp - terrainParams.coldCellStrength * coldCell, 0.0f, 1.0f);
 
             // Modest latitude (optional)
-            if (params.latitudeAmp > 0.0f) {
+            if (terrainParams.latitudeAmp > 0.0f) {
                 float lat = glm::clamp(0.5f - (wz / 80000.0f), 0.0f, 1.0f);
-                baseTemp = glm::clamp((1.0f - params.latitudeAmp) * baseTemp + params.latitudeAmp * lat, 0.0f, 1.0f);
+                baseTemp = glm::clamp((1.0f - terrainParams.latitudeAmp) * baseTemp + terrainParams.latitudeAmp * lat, 0.0f, 1.0f);
             }
 
             // Small lapse rate with height, but not too strong (snow mainly via snowLine)
-            float aboveSea = float(surfaceY - params.seaLevel);
+            float aboveSea = float(surfaceY - terrainParams.seaLevel);
             float lapse    = glm::clamp(aboveSea / 120.0f, 0.0f, 1.0f);
             float temp     = glm::clamp(baseTemp - 0.20f * lapse, 0.0f, 1.0f);
 
@@ -242,16 +239,16 @@ void Chunk::generate(const TerrainGenerationParams& params) {
             BlockType fill = BlockType::DIRT;
 
             // Beaches
-            if (std::abs(surfaceY - params.seaLevel) <= int(params.beachWidth)) {
+            if (std::abs(surfaceY - terrainParams.seaLevel) <= int(terrainParams.beachWidth)) {
                 top = fill = BlockType::SAND;
             }
             // Snow by elevation (mountaintops)
-            else if (surfaceY >= params.snowLine) {
+            else if (surfaceY >= terrainParams.snowLine) {
                 top  = BlockType::SNOW;
                 fill = BlockType::STONE;
             }
             // **Snowy plains**: cold cell + low elevation (no mountains)
-            else if (temp < 0.22f && surfaceY < params.snowLine - 8 && mMask < 0.35f) {
+            else if (temp < 0.22f && surfaceY < terrainParams.snowLine - 8 && mMask < 0.35f) {
                 top  = BlockType::SNOW;   // snowy ground
                 fill = BlockType::DIRT;   // dirt under snow (not stone)
             }
@@ -281,27 +278,27 @@ void Chunk::generate(const TerrainGenerationParams& params) {
             }
 
             // Bedrock-ish base
-            for (int y = 0; y <= params.bedrockLevel; ++y)
+            for (int y = 0; y <= terrainParams.bedrockLevel; ++y)
                 blocks.at(x, y, z) = BlockType::STONE;
 
             // Deep stone
-            for (int y = params.bedrockLevel + 1; y < surfaceY - 4; ++y)
+            for (int y = terrainParams.bedrockLevel + 1; y < surfaceY - 4; ++y)
                 blocks.at(x, y, z) = BlockType::STONE;
 
             // Subsurface filler
-            for (int y = std::max(params.bedrockLevel + 1, surfaceY - 4); y < surfaceY; ++y)
+            for (int y = std::max(terrainParams.bedrockLevel + 1, surfaceY - 4); y < surfaceY; ++y)
                 blocks.at(x, y, z) = fill;
 
             // Surface/top
             blocks.at(x, surfaceY, z) =
-                (surfaceY <= params.seaLevel ? (top == BlockType::SAND ? BlockType::SAND : BlockType::DIRT) : top);
+                (surfaceY <= terrainParams.seaLevel ? (top == BlockType::SAND ? BlockType::SAND : BlockType::DIRT) : top);
 
             // Water up to sea level
-            for (int y = surfaceY + 1; y <= params.seaLevel && y < HEIGHT; ++y)
+            for (int y = surfaceY + 1; y <= terrainParams.seaLevel && y < HEIGHT; ++y)
                 blocks.at(x, y, z) = BlockType::WATER;
 
             // Air above
-            for (int y = std::max(params.seaLevel + 1, surfaceY + 1); y < HEIGHT; ++y)
+            for (int y = std::max(terrainParams.seaLevel + 1, surfaceY + 1); y < HEIGHT; ++y)
                 blocks.at(x, y, z) = BlockType::AIR;
         }
     }
