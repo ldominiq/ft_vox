@@ -3,8 +3,8 @@
 BitPackedArray::BitPackedArray(size_t size, uint8_t bitsPerEntry)
     : m_size(size), m_bitsPerEntry(bitsPerEntry) {
 
-    if (bitsPerEntry == 0 || bitsPerEntry > 32) {
-        throw std::invalid_argument("bitsPerEntry must be between 1 and 32");
+    if (bitsPerEntry == 0 || bitsPerEntry > 31) {
+        throw std::invalid_argument("bitsPerEntry must be between 1 and 31");
     }
 
     size_t totalBits = m_size * m_bitsPerEntry;
