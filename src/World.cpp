@@ -147,7 +147,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
 	try {
 		updateRegionStreaming(currentChunkX, currentChunkZ);
 	} catch (std::exception &e) {
-		std::cout << e.what() << " - probably out of memory :D";
+		std::cerr << "Error in updateRegionStreaming: " << e.what() << " - possibly out of memory." << std::endl;
 	}
 
     // Determine which chunks we need within the circular radius.  For every
