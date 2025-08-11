@@ -117,7 +117,7 @@ void App::loadResources() {
 
     textureShader = std::make_shared<Shader>("shaders/simple.vert", "shaders/simple.frag");
     gradientShader = std::make_shared<Shader>("shaders/gradient.vert", "shaders/gradient.frag");
-    texture = loadTexture("assets/textures/spritesheet3.png");
+    texture = loadTexture("assets/textures/textures.png");
 
     activeShader = textureShader;
 
@@ -261,27 +261,27 @@ void App::debugWindow() {
                 // Noise frequencies
                 ImGui::Separator();
                 ImGui::Text("Noise Frequencies");
-                paramsChanged |= ImGui::SliderFloat("Biome Noise", &params.biomeNoiseFreq, 0.0001f, 0.01f, "%.6f");
-                paramsChanged |= ImGui::SliderFloat("Base Noise", &params.baseNoiseFreq, 0.001f, 0.1f, "%.4f");
-                paramsChanged |= ImGui::SliderFloat("Detail Noise", &params.detailNoiseFreq, 0.01f, 1.0f, "%.3f");
+                paramsChanged |= ImGui::SliderFloat("Biome Noise", &params.biomeNoiseFreq, 0.0001f, 0.05f, "%.6f");
+                paramsChanged |= ImGui::SliderFloat("Base Noise", &params.baseNoiseFreq, 0.001f, 0.05f, "%.4f");
+                paramsChanged |= ImGui::SliderFloat("Detail Noise", &params.detailNoiseFreq, 0.001f, 0.05f, "%.3f");
 
                 // Biome editing
-                ImGui::Separator();
-                ImGui::Text("Biomes");
-                for (size_t i = 0; i < params.biomes.size(); ++i) {
-                    if (ImGui::TreeNode(("Biome " + std::to_string(i)).c_str())) {
-                        auto& biome = params.biomes[i];
-                        paramsChanged |= ImGui::SliderFloat("Scale X", &biome.scaleX, 0.1f, 5.0f);
-                        paramsChanged |= ImGui::SliderFloat("Scale Z", &biome.scaleZ, 0.1f, 5.0f);
-                        paramsChanged |= ImGui::SliderFloat("Amplitude", &biome.amplitude, 1.0f, 100.0f);
-                        paramsChanged |= ImGui::SliderFloat("Offset", &biome.offset, 0.0f, 200.0f);
-                        paramsChanged |= ImGui::SliderFloat("Blend Min", &biome.blendMin, 0.0f, 1.0f);
-                        paramsChanged |= ImGui::SliderFloat("Blend Max", &biome.blendMax, 0.0f, 1.0f);
-                        paramsChanged |= ImGui::Checkbox("Use Base Noise", &biome.useBaseNoise);
-
-                        ImGui::TreePop();
-                    }
-                }
+                // ImGui::Separator();
+                // ImGui::Text("Biomes");
+                // for (size_t i = 0; i < params.biomes.size(); ++i) {
+                //     if (ImGui::TreeNode(("Biome " + std::to_string(i)).c_str())) {
+                //         auto& biome = params.biomes[i];
+                //         paramsChanged |= ImGui::SliderFloat("Scale X", &biome.scaleX, 0.1f, 5.0f);
+                //         paramsChanged |= ImGui::SliderFloat("Scale Z", &biome.scaleZ, 0.1f, 5.0f);
+                //         paramsChanged |= ImGui::SliderFloat("Amplitude", &biome.amplitude, 1.0f, 50.0f);
+                //         paramsChanged |= ImGui::SliderFloat("Offset", &biome.offset, 50.0f, 150.0f);
+                //         paramsChanged |= ImGui::SliderFloat("Blend Min", &biome.blendMin, 0.0f, 1.0f);
+                //         paramsChanged |= ImGui::SliderFloat("Blend Max", &biome.blendMax, 0.0f, 1.0f);
+                //         paramsChanged |= ImGui::Checkbox("Use Base Noise", &biome.useBaseNoise);
+                //
+                //         ImGui::TreePop();
+                //     }
+                // }
             }
 
 

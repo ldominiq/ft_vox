@@ -66,6 +66,8 @@ public:
 	static constexpr int HEIGHT = 256; // Height of the chunck in blocks
 	static constexpr int DEPTH = 16; // Depth of the chunck in blocks
     static constexpr int BLOCK_COUNT = WIDTH * HEIGHT * DEPTH;
+	const int ATLAS_COLS = 7;
+	const int ATLAS_ROWS = 1;
 
     Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate = true);
 	Chunk() = default;

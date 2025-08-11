@@ -27,19 +27,47 @@ struct TerrainGenerationParams {
     int seed = 1336;
 
     // Noise frequencies
-    float biomeNoiseFreq = 0.001f;
-    float baseNoiseFreq = 0.02f;
-    float detailNoiseFreq = 0.1f;
+    float biomeNoiseFreq = 0.0008f; // Large biome regions
+    float baseNoiseFreq = 0.007f; // Main terrain features
+    float detailNoiseFreq = 0.03f; // Small details
 
-    // Biomes
-    std::vector<BiomeParams> biomes = {
-        {2.0f, 2.0f, 3.0f, 15.0f, 0.00f, 0.30f, BlockType::SAND, true},   // Desert
-        {1.2f, 1.2f, 4.0f, 25.0f, 0.20f, 0.50f, BlockType::GRASS, true}, // Plains
-        {2.0f, 2.0f, 8.0f, 40.0f, 0.40f, 0.70f, BlockType::DIRT, false}, // Forest
-        {0.8f, 0.8f, 35.0f, 80.0f, 0.60f, 0.90f, BlockType::STONE, false}, // Mountain
-        {0.6f, 0.6f, 25.0f, 120.0f, 0.85f, 1.00f, BlockType::SNOW, false}  // Snow
-    };
+    // Sea level and base terrain
+    int seaLevel = 64;
+    int bedrockLevel = 5;
 
+    // Continents/coasts
+    float continentFreq = 0.0007f;   // slightly larger landmasses
+    float warpFreq      = 0.0016f;
+    float warpAmp       = 80.0f;
+
+    // Detail
+    float hillsFreq = 0.0032f;
+    float ridgedFreq= 0.0050f;
+    // Plains vs hills
+    float plainsHillsAmp   = 3.0f;    // small undulation in flat areas
+    float hillsAmp         = 6.0f;
+    // Mountains
+    float mtnBase          = 10.0f;   // base uplift in mountain regions
+    float mtnAmp           = 60.0f;   // mountain height (peaks)
+
+    // Climate
+    float tempFreq    = 0.0011f;
+    float moistFreq   = 0.0012f;
+    float latitudeAmp      = 0.15f;   // modest latitude effect (optional)
+
+    // Biome/beach/snow
+    float beachWidth = 5.0f;     // wider beaches
+    int   snowLine   = 170;      // snow only on high peaks (HEIGHT=256)
+
+
+    // Mountain placement (regional)
+    float mtnMaskFreq      = 0.0008f; // where mountains are allowed (big regions)
+    float mtnMaskThreshold = 0.62f;   // higher → fewer mountain regions
+    float mtnMaskSharpness = 0.10f;   // transition width
+
+    // Climate cells to create cold/snowy plains
+    float coldCellFreq     = 0.0005f; // very big cold regions
+    float coldCellStrength = 0.35f;   // how much they lower temp
 };
 
 #endif //TERRAINPARAMS_HPP

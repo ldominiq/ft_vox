@@ -1,9 +1,6 @@
 #include "Chunk.hpp"
 #include "World.hpp"
 
-const int ATLAS_COLS = 6;
-const int ATLAS_ROWS = 1;
-
 // This function maps block type + face to UV offset
 glm::vec2 getTextureOffset(const BlockType type, const int face) {
     int col = 0;
@@ -32,12 +29,36 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
             col = 5; row = 0;
             break;
 
+        case BlockType::WATER:
+            col = 6; row = 0;
+            break;
+
         default:
             col = 0; row = 0;
             break;
     }
 
     return glm::vec2(col, row);
+}
+
+static inline float remap01(float v) { return 0.5f * (v + 1.0f); }  // [-1,1] -> [0,1]
+static inline float clamp01(float v) { return glm::clamp(v, 0.0f, 1.0f); }
+static inline float smooth01(float v){ return glm::smoothstep(0.0f, 1.0f, v); }
+
+static float fbm(FastNoiseLite& n, float x, float z, int oct, float lac, float gain) {
+    float a = 1.0f, f = 1.0f, sum = 0.0f, norm = 0.0f;
+    for (int i = 0; i < oct; ++i) {
+        sum  += n.GetNoise(x * f, z * f) * a;
+        norm += a;
+        a    *= gain;
+        f    *= lac;
+    }
+    return (norm > 0.0f) ? (sum / norm) : 0.0f; // ~[-1,1]
+}
+
+static float ridged(FastNoiseLite& n, float x, float z) {
+    float h = 1.0f - std::abs(n.GetNoise(x, z)); // [0,1]
+    return h * h * h; // sharper ridges
 }
 
 
@@ -94,12 +115,12 @@ void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
         for (int y = -radius; y <= radius; ++y)
         for (int z = -radius; z <= radius; ++z) {
             glm::vec3 offset(x, y, z);
-            const glm::vec3 p = pos + offset;
+            const glm::vec3 params = pos + offset;
 
             if (glm::length(offset) <= radius) {
-                const int bx = static_cast<int>(p.x - originX);
-                const int by = static_cast<int>(p.y);
-                const int bz = static_cast<int>(p.z - originZ);
+                const int bx = static_cast<int>(params.x - originX);
+                const int by = static_cast<int>(params.y);
+                const int bz = static_cast<int>(params.z - originZ);
 
                 if (bx >= 0 && bx < WIDTH && by >= 0 && by < HEIGHT && bz >= 0 && bz < DEPTH) {
 					// setBlock(bx, by, bz, BlockType::AIR);
@@ -111,80 +132,175 @@ void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
 }
 
 void Chunk::generate(const TerrainGenerationParams& params) {
-    FastNoiseLite biomeNoise;
-    biomeNoise.SetSeed(params.seed);
-    biomeNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    biomeNoise.SetFrequency(params.biomeNoiseFreq); // low = large biomes
+    // Noise setup
+    FastNoiseLite nCont, nWarpA, nWarpB, nHills, nRidged, nTemp, nMoist;
 
-    FastNoiseLite baseNoise;
-    baseNoise.SetSeed(params.seed + 1);
-    baseNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    baseNoise.SetFrequency(params.baseNoiseFreq); // standard terrain noise
+    FastNoiseLite nMtnMask, nColdCell;
 
-    FastNoiseLite detailNoise;
-    detailNoise.SetSeed(params.seed + 2);
-    detailNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    detailNoise.SetFrequency(params.detailNoiseFreq); // high = more details
+    nMtnMask.SetSeed(params.seed + 40);
+    nMtnMask.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nMtnMask.SetFrequency(params.mtnMaskFreq);
 
-    FastNoiseLite warp;
-    warp.SetSeed(params.seed + 3);
-    warp.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    warp.SetFrequency(0.02f);
+    nColdCell.SetSeed(params.seed + 41);
+    nColdCell.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nColdCell.SetFrequency(params.coldCellFreq);
 
-    FastNoiseLite wormNoise;
-    wormNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    wormNoise.SetFrequency(0.1f);
+
+    nCont.SetSeed(params.seed + 11);
+    nCont.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nCont.SetFrequency(params.continentFreq);
+
+    nWarpA.SetSeed(params.seed + 12);
+    nWarpA.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    nWarpA.SetFrequency(params.warpFreq);
+
+    nWarpB.SetSeed(params.seed + 13);
+    nWarpB.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    nWarpB.SetFrequency(params.warpFreq);
+
+    nHills.SetSeed(params.seed + 21);
+    nHills.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nHills.SetFrequency(params.hillsFreq);
+
+    nRidged.SetSeed(params.seed + 22);
+    nRidged.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    nRidged.SetFrequency(params.ridgedFreq);
+
+    nTemp.SetSeed(params.seed + 31);
+    nTemp.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nTemp.SetFrequency(params.tempFreq);
+
+    nMoist.SetSeed(params.seed + 32);
+    nMoist.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nMoist.SetFrequency(params.moistFreq);
 
 	BlockStorage blocks;
-    
-    //                                  {scaleX, scaleZ, amplitude, offset, blendMin, blendMax, topBlock,         useBaseNoise}
-    std::vector<BiomeParams> biomes = {
-                                        {2.0f,   2.0f,   3.0f,      15.0f,  0.00f,    0.30f,    BlockType::SAND,  true},
-                                        {1.2f,   1.2f,   4.0f,      25.0f,  0.20f,    0.50f,    BlockType::GRASS, true},
-                                        {2.0f,   2.0f,   8.0f,      40.0f,  0.40f,    0.70f,    BlockType::DIRT,  false},
-                                        {0.8f,   0.8f,   35.0f,     80.0f,  0.60f,    0.90f,    BlockType::STONE, false},
-                                        {0.6f,   0.6f,   25.0f,     120.0f, 0.85f,    1.00f,    BlockType::SNOW,  false}
-                                    };
-    
+
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
-            float wx = originX + x;
-            float wz = originZ + z;
+            const float wx = float(originX + x);
+            const float wz = float(originZ + z);
 
-            float biomeBlendFactor = biomeNoise.GetNoise(wx, wz) * 0.5f + 0.5f;
+            // --- Domain warp to make interesting coasts ---
+            const float qx = wx + params.warpAmp * nWarpA.GetNoise(wx, wz);
+            const float qz = wz + params.warpAmp * nWarpB.GetNoise(wx + 1000.0f, wz - 1000.0f);
 
-            
-            std::vector<float> heights;
-            std::vector<float> weights;
-            heights.reserve(biomes.size());
-            weights.reserve(biomes.size());
+            // --- Continentalness and base uplift ---
+            float c = 0.5f * (nCont.GetNoise(qx, qz) + 1.0f);
+            c = glm::smoothstep(0.33f, 0.58f, c);             // broader land band
+            float baseShift = glm::mix(-22.0f, 44.0f, c);     // lift inland a bit
 
-            for (auto &bp : biomes) {
-                FastNoiseLite &noiseGenerator = bp.useBaseNoise ? baseNoise : detailNoise;
-                float noiseVal = noiseGenerator.GetNoise(wx * bp.scaleX, wz * bp.scaleZ);
-                heights.push_back(noiseVal * bp.amplitude + bp.offset);
-                weights.push_back(glm::smoothstep(bp.blendMin, bp.blendMax, biomeBlendFactor));
+            // --- Determine mountain regions (mask) ---
+            float mMaskRaw  = 0.5f * (nMtnMask.GetNoise(qx + 777.0f, qz - 333.0f) + 1.0f);
+            float mMask     = glm::smoothstep(params.mtnMaskThreshold - params.mtnMaskSharpness,
+                                              params.mtnMaskThreshold + params.mtnMaskSharpness,
+                                              mMaskRaw);
+            // mMask ~0 => plains region; ~1 => mountain region
+
+            // --- Terrain details ---
+            float hills = fbm(nHills, qx, qz, 4, 2.0f, 0.5f); // ~[-1,1]
+            float mtn   = ridged(nRidged, qx, qz);            // [0,1]
+
+            // Flatter outside mountain regions; real relief only where mMask≈1
+            float elevation =
+                baseShift
+              + (1.0f - mMask) * (params.plainsHillsAmp * hills)   // gentle undulation in plains
+              + mMask * (params.mtnBase + params.mtnAmp * mtn);         // mountains only in mountain regions
+
+            int surfaceY = int(std::round(float(params.seaLevel) + elevation));
+            surfaceY = glm::clamp(surfaceY, 1, HEIGHT - 2);
+
+
+
+            // --- Climate (temperature & moisture) ---
+            float baseTemp = 0.5f * (nTemp.GetNoise(wx, wz) + 1.0f);   // 0..1
+            float moist    = 0.5f * (nMoist.GetNoise(wx, wz) + 1.0f);  // 0..1
+
+            // Large cold regions to allow snowy plains at LOW altitude
+            float coldCell = 0.5f * (nColdCell.GetNoise(wx - 2000.0f, wz + 500.0f) + 1.0f); // 0..1
+            baseTemp = glm::clamp(baseTemp - params.coldCellStrength * coldCell, 0.0f, 1.0f);
+
+            // Modest latitude (optional)
+            if (params.latitudeAmp > 0.0f) {
+                float lat = glm::clamp(0.5f - (wz / 80000.0f), 0.0f, 1.0f);
+                baseTemp = glm::clamp((1.0f - params.latitudeAmp) * baseTemp + params.latitudeAmp * lat, 0.0f, 1.0f);
             }
 
-            float blendedHeight = 0.0f;
-            for (size_t i = 0; i < biomes.size(); ++i) {
-                blendedHeight += heights[i] * weights[i];
+            // Small lapse rate with height, but not too strong (snow mainly via snowLine)
+            float aboveSea = float(surfaceY - params.seaLevel);
+            float lapse    = glm::clamp(aboveSea / 120.0f, 0.0f, 1.0f);
+            float temp     = glm::clamp(baseTemp - 0.20f * lapse, 0.0f, 1.0f);
+
+            // Nudge moisture drier inland
+            float inlandness = c;
+            moist = glm::clamp(moist * glm::mix(0.90f, 1.05f, inlandness), 0.0f, 1.0f);
+
+            // --- Biome selection (Minecraft-ish) ---
+            BlockType top  = BlockType::GRASS;
+            BlockType fill = BlockType::DIRT;
+
+            // Beaches
+            if (std::abs(surfaceY - params.seaLevel) <= int(params.beachWidth)) {
+                top = fill = BlockType::SAND;
+            }
+            // Snow by elevation (mountaintops)
+            else if (surfaceY >= params.snowLine) {
+                top  = BlockType::SNOW;
+                fill = BlockType::STONE;
+            }
+            // **Snowy plains**: cold cell + low elevation (no mountains)
+            else if (temp < 0.22f && surfaceY < params.snowLine - 8 && mMask < 0.35f) {
+                top  = BlockType::SNOW;   // snowy ground
+                fill = BlockType::DIRT;   // dirt under snow (not stone)
+            }
+            // Desert: warm+dry, low-ish, somewhat inland, and NOT in mountain zones
+            else if (temp > 0.60f && moist < 0.38f && surfaceY < 120 && inlandness > 0.45f && mMask < 0.5f) {
+                top = fill = BlockType::SAND;
+            }
+            // Forest (wetter)
+            else if (moist >= 0.60f && temp > 0.28f) {
+                top  = BlockType::GRASS;
+                fill = BlockType::DIRT;
+            }
+            // Plains (moderate)
+            else if (temp > 0.42f && moist >= 0.35f && moist < 0.60f) {
+                top  = BlockType::GRASS;
+                fill = BlockType::DIRT;
+            }
+            // Cool plains / taiga ground (no full snow cover)
+            else if (temp <= 0.42f) {
+                top  = BlockType::GRASS;
+                fill = BlockType::DIRT;
+            }
+            // Fallback
+            else {
+                top  = BlockType::GRASS;
+                fill = BlockType::DIRT;
             }
 
-            int surfaceHeight = static_cast<int>(std::round(blendedHeight));
-            
+            // Bedrock-ish base
+            for (int y = 0; y <= params.bedrockLevel; ++y)
+                blocks.at(x, y, z) = BlockType::STONE;
 
-            for (int y = 0; y < HEIGHT; ++y) {
-                if (y <= surfaceHeight) {
-                    if (y == surfaceHeight || y > surfaceHeight - 5) {
-                        blocks.at(x, y, z) = selectBlockType(y, surfaceHeight, biomeBlendFactor, biomes, weights, heights);
-                    } else {
-                        blocks.at(x, y, z) = BlockType::STONE;
-                    }
-                } else {
-                    blocks.at(x, y, z) = BlockType::AIR;
-                }
-            }
+            // Deep stone
+            for (int y = params.bedrockLevel + 1; y < surfaceY - 4; ++y)
+                blocks.at(x, y, z) = BlockType::STONE;
+
+            // Subsurface filler
+            for (int y = std::max(params.bedrockLevel + 1, surfaceY - 4); y < surfaceY; ++y)
+                blocks.at(x, y, z) = fill;
+
+            // Surface/top
+            blocks.at(x, surfaceY, z) =
+                (surfaceY <= params.seaLevel ? (top == BlockType::SAND ? BlockType::SAND : BlockType::DIRT) : top);
+
+            // Water up to sea level
+            for (int y = surfaceY + 1; y <= params.seaLevel && y < HEIGHT; ++y)
+                blocks.at(x, y, z) = BlockType::WATER;
+
+            // Air above
+            for (int y = std::max(params.seaLevel + 1, surfaceY + 1); y < HEIGHT; ++y)
+                blocks.at(x, y, z) = BlockType::AIR;
         }
     }
 
