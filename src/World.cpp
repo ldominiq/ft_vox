@@ -154,47 +154,49 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
     // candidate coordinate we either mark it for generation or add it to the
     // rendered list.  We intentionally skip coordinates outside the circle to
     // approximate a circular load area.
-    std::vector<std::tuple<int, int, float>> candidates;
+    std::vector<std::tuple<int, int, float, float>> candidates;
 
     glm::vec2 camDir = glm::normalize(glm::vec2(cameraDir.x, cameraDir.z));
+    float maxDist = static_cast<float>(loadRadius);
 
     for (int dx = -loadRadius; dx <= loadRadius; ++dx) {
         for (int dz = -loadRadius; dz <= loadRadius; ++dz) {
             if (dx * dx + dz * dz >= loadRadius * loadRadius)
                 continue;
 
-            float dist = std::sqrt(dx * dx + dz * dz);
+            float dist = std::sqrt(static_cast<float>(dx * dx + dz * dz));
             glm::vec2 offset(dx, dz);
-            float dirScore = glm::dot(glm::normalize(offset), camDir);
-            float priority = dirScore - dist * 0.05f; // prefer closer chunks and chunks in view
+            float dirScore = glm::dot(glm::normalize(offset), camDir); // [-1, 1]
 
-            candidates.emplace_back(dx, dz, priority);
+            candidates.emplace_back(dx, dz, dist, dirScore);
         }
     }
 
-    // Sort by priority descending (chunks in front and closer come first)
+    // Sort: closest first, then by direction (front first)
     std::sort(candidates.begin(), candidates.end(),
-              [](const auto& a, const auto& b) {
-                  return std::get<2>(a) > std::get<2>(b);
-              });
+        [](const auto& a, const auto& b) {
+            float distA = std::get<2>(a), distB = std::get<2>(b);
+            if (distA != distB) return distA < distB; // nearer chunks first
+            return std::get<3>(a) > std::get<3>(b);   // if same dist, prefer forward
+        });
 	
 	std::unordered_set<ChunkPos> generatingChunks;
 	uint amountOfConcurrentChunksBeingGenerated = 0;
 
-    for (const auto& [dx, dz, priority] : candidates) {
+    for (const auto& [dx, dz, dist, dirScore] : candidates) {
         const int cx = currentChunkX + dx;
         const int cz = currentChunkZ + dz;
         ChunkPos key = toKey(cx, cz);
         std::shared_ptr<Chunk> chunk = getChunk(cx, cz);
 
         if (!chunk && amountOfConcurrentChunksBeingGenerated < maxConcurrentGeneration) {
-				generationFutures.push_back(std::async(std::launch::async, [=]() {
-					std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz, terrainParams);
-					return std::make_pair(key, newChunk);
-				}));
-			amountOfConcurrentChunksBeingGenerated++;
-		}
-		else if (chunk && chunk->preGenerated && amountOfConcurrentChunksBeingGenerated < maxConcurrentGeneration) 
+            generationFutures.push_back(std::async(std::launch::async, [=]() {
+                std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz, terrainParams);
+                return std::make_pair(key, newChunk);
+            }));
+            amountOfConcurrentChunksBeingGenerated++;
+        }
+        else if (chunk && chunk->preGenerated && amountOfConcurrentChunksBeingGenerated < maxConcurrentGeneration) 
 		{
 			generatingChunks.insert(key);
 			amountOfConcurrentChunksBeingGenerated++;
