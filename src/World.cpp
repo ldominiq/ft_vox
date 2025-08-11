@@ -6,6 +6,9 @@
 
 World::World() {
 	std::filesystem::create_directories("region");
+    std::mt19937 rng(time(nullptr));
+    terrainParams.seed = rng();
+    std::cout << "World seed: " << terrainParams.seed << std::endl;
 }
 
 World::~World() {
@@ -173,7 +176,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
 
         if (!chunk && amountOfConcurrentChunksBeeingGenerated < maxConcurrentGeneration) {
 				generationFutures.push_back(std::async(std::launch::async, [=]() {
-					std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz);
+					std::shared_ptr<Chunk> newChunk = std::make_shared<Chunk>(cx, cz, terrainParams);
 					return std::make_pair(key, newChunk);
 				}));
 			amountOfConcurrentChunksBeeingGenerated++;
@@ -383,6 +386,7 @@ void World::saveRegion(int regionX, int regionZ) {
 			chunks.erase(it);
 		}
 	}
+
 
     // --- Rewrite header with correct entries ---
     out.seekp(sizeof(metadata));

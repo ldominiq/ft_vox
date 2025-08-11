@@ -1,9 +1,6 @@
 #include "Chunk.hpp"
 #include "World.hpp"
 
-const int ATLAS_COLS = 6;
-const int ATLAS_ROWS = 1;
-
 // This function maps block type + face to UV offset
 glm::vec2 getTextureOffset(const BlockType type, const int face) {
     int col = 0;
@@ -32,6 +29,10 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
             col = 5; row = 0;
             break;
 
+        case BlockType::WATER:
+            col = 6; row = 0;
+            break;
+
         default:
             col = 0; row = 0;
             break;
@@ -40,14 +41,39 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
     return glm::vec2(col, row);
 }
 
+static inline float remap01(float v) { return 0.5f * (v + 1.0f); }  // [-1,1] -> [0,1]
+static inline float clamp01(float v) { return glm::clamp(v, 0.0f, 1.0f); }
+static inline float smooth01(float v){ return glm::smoothstep(0.0f, 1.0f, v); }
 
-Chunk::Chunk(const int chunkX, const int chunkZ, const bool doGenerate) 
+static float fbm(FastNoiseLite& n, float x, float z, int oct, float lac, float gain) {
+    float a = 1.0f, f = 1.0f, sum = 0.0f, norm = 0.0f;
+    for (int i = 0; i < oct; ++i) {
+        sum  += n.GetNoise(x * f, z * f) * a;
+        norm += a;
+        a    *= gain;
+        f    *= lac;
+    }
+    return (norm > 0.0f) ? (sum / norm) : 0.0f; // ~[-1,1]
+}
+
+static float ridged(FastNoiseLite& n, float x, float z) {
+    float h = 1.0f - std::abs(n.GetNoise(x, z)); // [0,1]
+    return h * h * h; // sharper ridges
+}
+
+
+Chunk::Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate)
     : originX(chunkX * WIDTH), originZ(chunkZ * DEPTH),
-      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4)  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
+      blockIndices(WIDTH * HEIGHT * DEPTH, /*bitsPerEntry=*/4), currentParams(params)  // or more, depending on palette size. We could even use 3 as we use less than 8 types of blocks
 {
 	if (doGenerate)
-    	generate();
+    	generate(params);
 	else preGenerated = true;
+    	
+}
+
+bool Chunk::needsUpdate() const {
+	return m_needsUpdate;
 }
 
 bool Chunk::hasAllAdjacentChunkLoaded() const {
@@ -91,12 +117,12 @@ void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
         for (int y = -radius; y <= radius; ++y)
         for (int z = -radius; z <= radius; ++z) {
             glm::vec3 offset(x, y, z);
-            const glm::vec3 p = pos + offset;
+            const glm::vec3 params = pos + offset;
 
             if (glm::length(offset) <= radius) {
-                const int bx = static_cast<int>(p.x - originX);
-                const int by = static_cast<int>(p.y);
-                const int bz = static_cast<int>(p.z - originZ);
+                const int bx = static_cast<int>(params.x - originX);
+                const int by = static_cast<int>(params.y);
+                const int bz = static_cast<int>(params.z - originZ);
 
                 if (bx >= 0 && bx < WIDTH && by >= 0 && by < HEIGHT && bz >= 0 && bz < DEPTH) {
 					// setBlock(bx, by, bz, BlockType::AIR);
@@ -107,111 +133,176 @@ void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
     }
 }
 
-void Chunk::generate() {
-    FastNoiseLite biomeNoise;
-    biomeNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    biomeNoise.SetFrequency(0.001f); // low = large biomes
+void Chunk::generate(const TerrainGenerationParams& params) {
+    // Noise setup
+    FastNoiseLite nCont, nWarpA, nWarpB, nHills, nRidged, nTemp, nMoist;
 
-    FastNoiseLite baseNoise;
-    baseNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    baseNoise.SetFrequency(0.01f); // standard terrain noise
+    FastNoiseLite nMtnMask, nColdCell;
 
-    FastNoiseLite warp;
-    warp.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    warp.SetFrequency(0.02f);
+    nMtnMask.SetSeed(params.seed + 40);
+    nMtnMask.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nMtnMask.SetFrequency(params.mtnMaskFreq);
 
-    FastNoiseLite wormNoise;
-    wormNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    wormNoise.SetFrequency(0.1f);
+    nColdCell.SetSeed(params.seed + 41);
+    nColdCell.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nColdCell.SetFrequency(params.coldCellFreq);
+
+
+    nCont.SetSeed(params.seed + 11);
+    nCont.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nCont.SetFrequency(params.continentFreq);
+
+    nWarpA.SetSeed(params.seed + 12);
+    nWarpA.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    nWarpA.SetFrequency(params.warpFreq);
+
+    nWarpB.SetSeed(params.seed + 13);
+    nWarpB.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    nWarpB.SetFrequency(params.warpFreq);
+
+    nHills.SetSeed(params.seed + 21);
+    nHills.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nHills.SetFrequency(params.hillsFreq);
+
+    nRidged.SetSeed(params.seed + 22);
+    nRidged.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    nRidged.SetFrequency(params.ridgedFreq);
+
+    nTemp.SetSeed(params.seed + 31);
+    nTemp.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nTemp.SetFrequency(params.tempFreq);
+
+    nMoist.SetSeed(params.seed + 32);
+    nMoist.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    nMoist.SetFrequency(params.moistFreq);
 
 	BlockStorage blocks;
 
-    // ========== Base terrain ==========
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
-            // World-space position
-            const int worldX = originX + x;
-            const int worldZ = originZ + z;
+            const float wx = float(originX + x);
+            const float wz = float(originZ + z);
 
-            float xf = static_cast<float>(worldX);
-            float zf = static_cast<float>(worldZ);
+            // --- Domain warp to make interesting coasts ---
+            const float qx = wx + params.warpAmp * nWarpA.GetNoise(wx, wz);
+            const float qz = wz + params.warpAmp * nWarpB.GetNoise(wx + 1000.0f, wz - 1000.0f);
 
-            // Domain warp to add terrain folds
-            float wx = xf + warp.GetNoise(xf, zf) * 20.0f;
-            float wz = zf + warp.GetNoise(zf, xf) * 20.0f;
+            // --- Continentalness and base uplift ---
+            float c = 0.5f * (nCont.GetNoise(qx, qz) + 1.0f);
+            c = glm::smoothstep(0.33f, 0.58f, c);             // broader land band
+            float baseShift = glm::mix(-22.0f, 44.0f, c);     // lift inland a bit
 
-            
-            // Get biome value and normalize to [0,1]
-            float biomeBlendFactor = biomeNoise.GetNoise(xf, zf) * 0.5f + 0.5f;
+            // --- Determine mountain regions (mask) ---
+            float mMaskRaw  = 0.5f * (nMtnMask.GetNoise(qx + 777.0f, qz - 333.0f) + 1.0f);
+            float mMask     = glm::smoothstep(params.mtnMaskThreshold - params.mtnMaskSharpness,
+                                              params.mtnMaskThreshold + params.mtnMaskSharpness,
+                                              mMaskRaw);
+            // mMask ~0 => plains region; ~1 => mountain region
 
-            // Determine biome type
-            BiomeType biome;
-            if (biomeBlendFactor < 0.2f)       biome = BiomeType::DESERT;
-            else if (biomeBlendFactor < 0.4f)  biome = BiomeType::PLAINS;
-            else if (biomeBlendFactor < 0.6f)  biome = BiomeType::FOREST;
-            else if (biomeBlendFactor < 0.8f)  biome = BiomeType::MOUNTAIN;
-            else                biome = BiomeType::SNOW;
+            // --- Terrain details ---
+            float hills = fbm(nHills, qx, qz, 4, 2.0f, 0.5f); // ~[-1,1]
+            float mtn   = ridged(nRidged, qx, qz);            // [0,1]
 
-            float plainsH   = baseNoise.GetNoise(wx, wz) * 6.0f + 10.0f;
-            float forestH   = baseNoise.GetNoise(wx, wz) * 10.0f + 44.0f;
-            float desertH   = baseNoise.GetNoise(wx, wz) * 5.0f + 36.0f;
-            float mountainH = baseNoise.GetNoise(wx * 0.6f, wz * 0.6f) * 28.0f + 100.0f;
-            float snowH     = baseNoise.GetNoise(wx * 0.5f, wz * 0.5f) * 18.0f + 110.0f;
+            // Flatter outside mountain regions; real relief only where mMask≈1
+            float elevation =
+                baseShift
+              + (1.0f - mMask) * (params.plainsHillsAmp * hills)   // gentle undulation in plains
+              + mMask * (params.mtnBase + params.mtnAmp * mtn);         // mountains only in mountain regions
+
+            int surfaceY = int(std::round(float(params.seaLevel) + elevation));
+            surfaceY = glm::clamp(surfaceY, 1, HEIGHT - 2);
 
 
-            // Terrain height by biome
-            float heightF = 0.0f;
 
-            // b in [0, 1], we split into 4 blend zones
-            if (biomeBlendFactor < 0.25f) {
-                // desert → plains
-                float t = biomeBlendFactor / 0.25f;
-                heightF = glm::mix(desertH, plainsH, t);
-                biome = (t < 0.5f) ? BiomeType::DESERT : BiomeType::PLAINS;
+            // --- Climate (temperature & moisture) ---
+            float baseTemp = 0.5f * (nTemp.GetNoise(wx, wz) + 1.0f);   // 0..1
+            float moist    = 0.5f * (nMoist.GetNoise(wx, wz) + 1.0f);  // 0..1
 
-            } else if (biomeBlendFactor < 0.5f) {
-                // plains → forest
-                float t = (biomeBlendFactor - 0.25f) / 0.25f;
-                heightF = glm::mix(plainsH, forestH, t);
-                biome = (t < 0.5f) ? BiomeType::PLAINS : BiomeType::FOREST;
+            // Large cold regions to allow snowy plains at LOW altitude
+            float coldCell = 0.5f * (nColdCell.GetNoise(wx - 2000.0f, wz + 500.0f) + 1.0f); // 0..1
+            baseTemp = glm::clamp(baseTemp - params.coldCellStrength * coldCell, 0.0f, 1.0f);
 
-            } else if (biomeBlendFactor < 0.75f) {
-                // forest → mountain
-                float t = (biomeBlendFactor - 0.5f) / 0.25f;
-                heightF = glm::mix(forestH, mountainH, t);
-                biome = (t < 0.5f) ? BiomeType::FOREST : BiomeType::MOUNTAIN;
-
-            } else {
-                // mountain → snow
-                float t = (biomeBlendFactor - 0.75f) / 0.25f;
-                heightF = glm::mix(mountainH, snowH, t);
-                biome = (t < 0.5f) ? BiomeType::MOUNTAIN : BiomeType::SNOW;
+            // Modest latitude (optional)
+            if (params.latitudeAmp > 0.0f) {
+                float lat = glm::clamp(0.5f - (wz / 80000.0f), 0.0f, 1.0f);
+                baseTemp = glm::clamp((1.0f - params.latitudeAmp) * baseTemp + params.latitudeAmp * lat, 0.0f, 1.0f);
             }
 
-            int height = static_cast<int>(glm::clamp(heightF, 1.0f, (float)HEIGHT - 1));
+            // Small lapse rate with height, but not too strong (snow mainly via snowLine)
+            float aboveSea = float(surfaceY - params.seaLevel);
+            float lapse    = glm::clamp(aboveSea / 120.0f, 0.0f, 1.0f);
+            float temp     = glm::clamp(baseTemp - 0.20f * lapse, 0.0f, 1.0f);
 
-            // Block layers based on biome
-			for (int y = 0; y < HEIGHT; ++y) {
-				BlockType block = BlockType::AIR;
+            // Nudge moisture drier inland
+            float inlandness = c;
+            moist = glm::clamp(moist * glm::mix(0.90f, 1.05f, inlandness), 0.0f, 1.0f);
 
-				if (y < height - 4) {
-					block = BlockType::STONE;
-				} else if (y < height - 1) {
-					block = (biome == BiomeType::DESERT) ? BlockType::SAND : BlockType::DIRT;
-				} else if (y < height) {
-					block = [&] {
-						switch (biome) {
-							case BiomeType::DESERT:    return BlockType::SAND;
-							case BiomeType::SNOW:      return BlockType::SNOW;
-							case BiomeType::MOUNTAIN:  return BlockType::STONE;
-							default:                   return BlockType::GRASS;
-						}
-					}();
-				}
+            // --- Biome selection (Minecraft-ish) ---
+            BlockType top  = BlockType::GRASS;
+            BlockType fill = BlockType::DIRT;
 
-				blocks.at(x,y,z) = block;
-				// setBlock(x, y, z, block);
-			}
+            // Beaches
+            if (std::abs(surfaceY - params.seaLevel) <= int(params.beachWidth)) {
+                top = fill = BlockType::SAND;
+            }
+            // Snow by elevation (mountaintops)
+            else if (surfaceY >= params.snowLine) {
+                top  = BlockType::SNOW;
+                fill = BlockType::STONE;
+            }
+            // **Snowy plains**: cold cell + low elevation (no mountains)
+            else if (temp < 0.22f && surfaceY < params.snowLine - 8 && mMask < 0.35f) {
+                top  = BlockType::SNOW;   // snowy ground
+                fill = BlockType::DIRT;   // dirt under snow (not stone)
+            }
+            // Desert: warm+dry, low-ish, somewhat inland, and NOT in mountain zones
+            else if (temp > 0.60f && moist < 0.38f && surfaceY < 120 && inlandness > 0.45f && mMask < 0.5f) {
+                top = fill = BlockType::SAND;
+            }
+            // Forest (wetter)
+            else if (moist >= 0.60f && temp > 0.28f) {
+                top  = BlockType::GRASS;
+                fill = BlockType::DIRT;
+            }
+            // Plains (moderate)
+            else if (temp > 0.42f && moist >= 0.35f && moist < 0.60f) {
+                top  = BlockType::GRASS;
+                fill = BlockType::DIRT;
+            }
+            // Cool plains / taiga ground (no full snow cover)
+            else if (temp <= 0.42f) {
+                top  = BlockType::GRASS;
+                fill = BlockType::DIRT;
+            }
+            // Fallback
+            else {
+                top  = BlockType::GRASS;
+                fill = BlockType::DIRT;
+            }
+
+            // Bedrock-ish base
+            for (int y = 0; y <= params.bedrockLevel; ++y)
+                blocks.at(x, y, z) = BlockType::STONE;
+
+            // Deep stone
+            for (int y = params.bedrockLevel + 1; y < surfaceY - 4; ++y)
+                blocks.at(x, y, z) = BlockType::STONE;
+
+            // Subsurface filler
+            for (int y = std::max(params.bedrockLevel + 1, surfaceY - 4); y < surfaceY; ++y)
+                blocks.at(x, y, z) = fill;
+
+            // Surface/top
+            blocks.at(x, surfaceY, z) =
+                (surfaceY <= params.seaLevel ? (top == BlockType::SAND ? BlockType::SAND : BlockType::DIRT) : top);
+
+            // Water up to sea level
+            for (int y = surfaceY + 1; y <= params.seaLevel && y < HEIGHT; ++y)
+                blocks.at(x, y, z) = BlockType::WATER;
+
+            // Air above
+            for (int y = std::max(params.seaLevel + 1, surfaceY + 1); y < HEIGHT; ++y)
+                blocks.at(x, y, z) = BlockType::AIR;
         }
     }
 
@@ -247,6 +338,32 @@ void Chunk::generate() {
     }
 
 	blockIndices.encodeAll(blocks.getData(), palette, paletteMap);
+}
+
+BlockType Chunk::selectBlockType(int y, int surfaceHeight, float blend,
+                                 const std::vector<BiomeParams>& biomes,
+                                 const std::vector<float>& weights,
+                                 const std::vector<float>& heights) {
+    if (y < surfaceHeight - 5)
+        return BlockType::STONE;
+    if (y < surfaceHeight)
+        return BlockType::DIRT;
+    if (y > surfaceHeight)
+        return BlockType::AIR;
+
+    // Compute contribution = weight * actual height
+    float maxContribution = -1.0f;
+    BlockType topBlock = BlockType::DIRT;
+
+    for (size_t i = 0; i < biomes.size(); ++i) {
+        float contribution = weights[i] * heights[i];
+        if (contribution > maxContribution) {
+            maxContribution = contribution;
+            topBlock = biomes[i].topBlock;
+        }
+    }
+
+    return topBlock;
 }
 
 

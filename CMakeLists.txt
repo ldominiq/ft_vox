@@ -91,7 +91,8 @@ target_include_directories(imgui PUBLIC
 # Also link against dl on Linux for dynamic loading (glad/glfw handle OpenGL loader)
 target_link_libraries(imgui PUBLIC glfw ${CMAKE_DL_LIBS})
 
-add_executable(${PROJECT_NAME} ${SRC})
+add_executable(${PROJECT_NAME} ${SRC}
+        include/TerrainParams.hpp)
 
 # Modified shader files are now always copied to build folder now when modified
 file(GLOB_RECURSE SHADER_FILES

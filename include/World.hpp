@@ -17,6 +17,8 @@
 #include <filesystem>
 #include <optional>
 
+#include "TerrainParams.hpp"
+
 using ChunkPos = std::pair<int, int>; // (chunkX, chunkZ)
 
 static constexpr int REGION_SIZE = 32;
@@ -74,8 +76,11 @@ public:
 	bool isBlockVisibleWorld(glm::ivec3 globalCoords);
 
 	void saveRegionsOnExit();
+    // Terrain params for ImGui
+    TerrainGenerationParams& getTerrainParams() { return terrainParams;}
 
 private:
+    TerrainGenerationParams terrainParams;
 
 	inline int floorDiv(int value, int divisor) {
 		if (value >= 0) return value / divisor;

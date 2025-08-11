@@ -4,6 +4,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/noise.hpp>
 
 #include <glad/glad.h>
 #include <cstdlib>
@@ -20,6 +21,7 @@
 
 #include "Block.hpp"
 #include "BitPackedArray.hpp"
+#include "TerrainParams.hpp"
 
 class World;
 class BlockStorage;
@@ -64,11 +66,14 @@ public:
 	static constexpr int HEIGHT = 256; // Height of the chunck in blocks
 	static constexpr int DEPTH = 16; // Depth of the chunck in blocks
     static constexpr int BLOCK_COUNT = WIDTH * HEIGHT * DEPTH;
+	const int ATLAS_COLS = 7;
+	const int ATLAS_ROWS = 1;
 
-    Chunk(const int chunkX, const int chunkZ, const bool doGenerate = true);
+    Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate = true);
+	Chunk() = default;
     
     void carveWorm(Worm& worm, BlockStorage &blocks);
-    void generate();
+    void generate(const TerrainGenerationParams& params);
 
     BlockType getBlock(int x, int y, int z) const;
 	void setBlock(int x, int y, int z, BlockType block);
@@ -88,7 +93,12 @@ public:
 	void uploadMesh();
 
 	bool preGenerated = false;
+
+	BlockType selectBlockType(int y, int surfaceHeight, float blend, const std::vector<BiomeParams>& biomes, const std::vector<float>& weights, const std::vector<float>& heights);
+
+
 private:
+	TerrainGenerationParams currentParams;
 
 	std::weak_ptr<Chunk> adjacentChunks[4] = {};
 
