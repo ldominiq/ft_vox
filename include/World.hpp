@@ -46,6 +46,8 @@ struct ChunkEntry {
 class World {
 public:
     World();
+	World(int seed);
+
     ~World();
 
 	std::vector<std::weak_ptr<Chunk>> getRenderedChunks();
@@ -94,10 +96,6 @@ private:
     // Pending futures representing asynchronous chunk generation tasks.
     std::vector<std::future<std::pair<ChunkPos, std::shared_ptr<Chunk>>>> generationFutures;
 
-    // Maximum number of chunk futures to process (integrate into the world)
-    // per updateVisibleChunks() call.  Limiting this reduces frame spikes.
-    // std::size_t maxChunkProcessPerFrame = 800000;
-
     // The radius (in chunks) around the camera in which to load chunks.  This
     // value can be changed at runtime via the UI.
     int loadRadius = 16;
@@ -116,6 +114,7 @@ private:
 	void saveRegion(int regionX, int regionZ);
 	void loadRegion(int regionX, int regionZ);
 	std::string getRegionFilename(int regionX, int regionZ) const;
+	std::string regionDirName;
 };
 
 #endif //WORLD_HPP

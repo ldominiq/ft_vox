@@ -51,6 +51,7 @@ enum controls {
 class App {
 public:
     App();
+	App(int seed);
     ~App();
 
     void run();
@@ -93,18 +94,17 @@ private:
     std::shared_ptr<Shader> gradientShader;
     std::shared_ptr<Shader> activeShader;   // pointer to the currently active shader program
 
+	std::optional<int> seed;
+
     float lastX = 400, lastY = 300;
     bool firstMouse = true;
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
 
-
     bool wireframe = false;
-
 
     float lastTitleUpdate = 0.0f;
     int frameCount = 0;
-
 
     int windowedX = 100;
     int windowedY = 100;

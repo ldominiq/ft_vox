@@ -5,10 +5,19 @@
 #include "World.hpp"
 
 World::World() {
-	std::filesystem::create_directories("region");
     std::mt19937 rng(time(nullptr));
     terrainParams.seed = rng();
+
+	regionDirName = "region-" + std::to_string(terrainParams.seed);
+	std::filesystem::create_directories(regionDirName);
     std::cout << "World seed: " << terrainParams.seed << std::endl;
+}
+
+World::World(int seed) {
+	regionDirName = "region-" + std::to_string(seed);
+	std::filesystem::create_directories(regionDirName);
+    std::mt19937 rng(time(nullptr));
+    terrainParams.seed = seed;
 }
 
 World::~World() {
@@ -135,7 +144,11 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
     const int currentChunkX = static_cast<int>(std::floor(cameraPos.x / Chunk::WIDTH));
     const int currentChunkZ = static_cast<int>(std::floor(cameraPos.z / Chunk::DEPTH));
 
-	// updateRegionStreaming(currentChunkX, currentChunkZ);
+	try {
+		updateRegionStreaming(currentChunkX, currentChunkZ);
+	} catch (std::exception &e) {
+		std::cout << e.what() << " - probably out of memory :D";
+	}
 
     // Determine which chunks we need within the circular radius.  For every
     // candidate coordinate we either mark it for generation or add it to the
@@ -181,16 +194,12 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
 				}));
 			amountOfConcurrentChunksBeingGenerated++;
 		}
-		// else if (chunk && chunk->preGenerated && amountOfConcurrentChunksBeingGenerated < maxConcurrentGeneration) 
-		// {
-		// 	generatingChunks.insert(key);
-		// 	amountOfConcurrentChunksBeingGenerated++;
-		// 	chunk->preGenerated = false;
-		// }
-		
-		// } else {
-        //     renderedChunks.push_back(chunk);
-        // }
+		else if (chunk && chunk->preGenerated && amountOfConcurrentChunksBeingGenerated < maxConcurrentGeneration) 
+		{
+			generatingChunks.insert(key);
+			amountOfConcurrentChunksBeingGenerated++;
+			chunk->preGenerated = false;
+		}
     }
 
 
@@ -220,18 +229,12 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
 		}
 	}
 
-	// for (auto [chunkX, chunkZ] : generatingChunks) {
-	// 	std::shared_ptr<Chunk> currChunk = getChunk(chunkX, chunkZ);
-	// 	linkNeighbors(chunkX, chunkZ, currChunk);
-	// }
-
 	for (auto [chunkX, chunkZ] : generatingChunks) {
 		std::shared_ptr<Chunk> currChunk = getChunk(chunkX, chunkZ);
 		linkNeighbors(chunkX, chunkZ, currChunk);
 	}
 
 	std::vector<std::future<ChunkPos>> meshFutures;
-	// size_t maxConcurrentMesh = 2; // limit to avoid frame drops
 
 	std::unordered_set<ChunkPos> chunksToBuild;
 	for (auto [chunkX, chunkZ] : generatingChunks) {
@@ -252,16 +255,12 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
 	}
 
 	for (auto it = meshFutures.begin(); it != meshFutures.end();) {
-		// if (it->wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
 		ChunkPos pos = it->get();
 		auto chunk = getChunk(pos.first, pos.second);
 		if (chunk) {
 			chunk->uploadMesh();
 		}
 		it = meshFutures.erase(it);
-		// } else {
-			// ++it;
-		// }
 	}
 
     // Rebuild the renderedChunks list again after newly generated chunks may
@@ -427,6 +426,6 @@ void World::loadRegion(int regionX, int regionZ) {
 std::string World::getRegionFilename(int regionX, int regionZ) const {
 	
     std::ostringstream ss;
-    ss << "region/r." << regionX << "." << regionZ << ".rg";
+    ss << regionDirName + "/r." << regionX << "." << regionZ << ".rg";
     return ss.str();
 }

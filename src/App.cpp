@@ -15,13 +15,44 @@ GLFWwindow* window;
 
 static unsigned int loadTexture(const char* path);
 
-App::App(): VAO(0), VBO(0), EBO(0), shaderProgram(0), texture(0), camera(nullptr), monitor(nullptr), mode(nullptr),
-            // chunk(nullptr),
+App::App(): VAO(0),
+			VBO(0),
+			EBO(0),
+
+			shaderProgram(0),
+			texture(0),
+
+			camera(nullptr),
+			monitor(nullptr),
+			mode(nullptr),
+
             world(nullptr),
             skybox(nullptr),
             textureShader(nullptr),
             gradientShader(nullptr),
             activeShader(nullptr) {
+    // Pre-allocate the FPS sample buffer to avoid reallocations at runtime
+    fpsSamples.reserve(fpsSampleCount);
+}
+
+App::App(int seed): VAO(0),
+			VBO(0),
+			EBO(0),
+
+			shaderProgram(0),
+			texture(0),
+
+			camera(nullptr),
+			monitor(nullptr),
+			mode(nullptr),
+
+            world(nullptr),
+            skybox(nullptr),
+            textureShader(nullptr),
+            gradientShader(nullptr),
+            activeShader(nullptr),
+			
+			seed(seed) {
     // Pre-allocate the FPS sample buffer to avoid reallocations at runtime
     fpsSamples.reserve(fpsSampleCount);
 }
@@ -59,7 +90,8 @@ void App::init() {
 
 	skybox = std::make_unique<Skybox>(faces);
 
-    world = std::make_unique<World>();
+	if (seed.has_value()) world = std::make_unique<World>(seed.value());
+    else world = std::make_unique<World>();
     
     glEnable(GL_DEPTH_TEST);
     
