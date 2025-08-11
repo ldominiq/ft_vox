@@ -139,15 +139,34 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
     // Unload distant chunks to free memory.  Chunks beyond (loadRadius + 2)
     // in a circular distance from the camera are removed.  We copy the keys
     // to a temporary list to avoid invalidating the iterator while erasing.
-    const int unloadRadius = loadRadius + 2;
-    std::vector<ChunkPos> toRemove;
+
     const int currentChunkX = static_cast<int>(std::floor(cameraPos.x / Chunk::WIDTH));
     const int currentChunkZ = static_cast<int>(std::floor(cameraPos.z / Chunk::DEPTH));
 
-	try {
-		updateRegionStreaming(currentChunkX, currentChunkZ);
-	} catch (std::exception &e) {
-		std::cerr << "Error in updateRegionStreaming: " << e.what() << " - possibly out of memory." << std::endl;
+	if (!outOfMemory) {
+		try {
+			updateRegionStreaming(currentChunkX, currentChunkZ);
+		} catch (std::exception &e) {
+			std::cerr << "Error in updateRegionStreaming: " << e.what() << " - possibly out of memory." << std::endl;
+
+			outOfMemory = true;
+		}
+	} else {
+		//remove chunks to not go out of memory;
+		const int unloadRadius = loadRadius + 32;
+		std::vector<ChunkPos> toRemove;
+		for (const auto& entry : chunks) {
+			const int cx = entry.first.first;
+			const int cz = entry.first.second;
+			const int dx = cx - currentChunkX;
+			const int dz = cz - currentChunkZ;
+			if (dx * dx + dz * dz > unloadRadius * unloadRadius) {
+				toRemove.push_back(entry.first);
+			}
+		}
+		for (auto k : toRemove){
+			chunks.erase(k);
+		}
 	}
 
     // Determine which chunks we need within the circular radius.  For every
