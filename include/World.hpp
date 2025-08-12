@@ -99,6 +99,7 @@ private:
     // The radius (in chunks) around the camera in which to load chunks.  This
     // value can be changed at runtime via the UI.
     int loadRadius = 16;
+	bool outOfMemory = false;
 
     // Maximum number of chunk generation tasks that can be running at the
     // same time.  Limiting concurrency prevents CPU oversubscription and

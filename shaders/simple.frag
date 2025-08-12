@@ -11,6 +11,15 @@ uniform vec3 lightDir;
 uniform vec3 lightColor;
 uniform vec3 ambientColor;
 
+float near = 0.1;
+float far  = 100.0;
+
+float LinearizeDepth(float depth)
+{
+    float z = depth * 2.0 - 1.0; // back to NDC
+    return (2.0 * near * far) / (far + near - z * (far - near));
+}
+
 void main() {
     vec4 texColor = texture(atlas, TexCoord);
 
@@ -19,8 +28,11 @@ void main() {
 
     vec3 lighting = texColor.rgb * (ambientColor + lightColor * diff);
 
-    //FragColor = vec4(texColor.rgb * vLight, texColor.a);
-    FragColor = vec4(lighting, texColor.a);
+    FragColor = texColor;
+    //FragColor = vec4(lighting, texColor.a); // Lighting
     //FragColor = vec4(normalize(Normal) * 0.5 + 0.5, 1.0); // Visualize normals
     //FragColor = vec4(TexCoord, 0.0, 1.0); // Visualize texture coordinates
+
+    //float depth = LinearizeDepth(gl_FragCoord.z) / far; // Visualize depth buffer
+    //FragColor = vec4(vec3(depth), 1.0);
 }
