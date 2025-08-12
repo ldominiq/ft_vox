@@ -76,6 +76,18 @@ Chunk::Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& 
     	
 }
 
+Chunk::~Chunk() {
+    // Free resources for the GPU memory
+    if (VAO) {
+        glDeleteVertexArrays(1, &VAO);
+        VAO = 0;
+    }
+    if (VBO) {
+        glDeleteBuffers(1, &VBO);
+        VBO = 0;
+    }
+}
+
 
 bool Chunk::hasAllAdjacentChunkLoaded() const {
     for (const auto& adj : adjacentChunks) {
@@ -543,7 +555,7 @@ void Chunk::uploadMesh() {
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(6 * sizeof(float)));
     glEnableVertexAttribArray(3);
-
+    
     meshVerticesSize = meshVertices.size();
     meshVertices.clear();
     meshVertices.shrink_to_fit();

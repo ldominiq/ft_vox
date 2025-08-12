@@ -71,6 +71,7 @@ public:
 
     Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate = true);
 	Chunk() = default;
+	~Chunk();
     
     void carveWorm(Worm& worm, BlockStorage &blocks);
     void generate(const TerrainGenerationParams& terrainParams);
