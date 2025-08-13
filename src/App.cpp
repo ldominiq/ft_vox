@@ -69,6 +69,8 @@ void App::init() {
     mode = glfwGetVideoMode(monitor);
 
     window = glfwCreateWindow(windowedWidth, windowedHeight, "ft_vox", nullptr, nullptr);
+    glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+
     glfwSetFramebufferSizeCallback(window, [](GLFWwindow* w, const int width, const int height) {
         (void)w;
         glViewport(0, 0, width, height);

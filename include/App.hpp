@@ -82,7 +82,7 @@ private:
         Windowed,
         Fullscreen
     };
-    DisplayMode displayMode = DisplayMode::Windowed;
+    DisplayMode displayMode = DisplayMode::Fullscreen;
 
     std::unique_ptr<Camera> camera;
 	GLFWmonitor* monitor;
@@ -138,7 +138,7 @@ private:
     bool uiInteractive = false;
     // Internal flag to handle key debounce for toggling the interactive mode.
     bool uiToggleHeld = false;
-	bool showDebugWindow = true;
+	bool showDebugWindow = false;
 
 	//keeps track of control GLFW values
     int controlsArray[CONTROL_COUNT];
