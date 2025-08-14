@@ -4,7 +4,6 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/noise.hpp>
 
 #include <glad/glad.h>
 #include <cstdlib>
@@ -22,6 +21,7 @@
 #include "Block.hpp"
 #include "BitPackedArray.hpp"
 #include "TerrainParams.hpp"
+#include "Noise.hpp"
 
 class World;
 class BlockStorage;
