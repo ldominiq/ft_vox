@@ -141,18 +141,50 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
             const float wx = float(originX + x);
             const float wz = float(originZ + z);
 
+            const float frequency = 0.0005f;
+            const int octaves = 8;
+            const float lacunarity = 2.0f;
+            const float persistence = 0.5f;
 
-            float continent = noise.fractalBrownianMotion2D(wx * 0.002f,
-                                                            wz * 0.002f,
-                                                            8,
-                                                            2.0f,
-                                                            0.7f
+            float continent = noise.fractalBrownianMotion2D(wx * frequency,
+                                                            wz * frequency,
+                                                            octaves,
+                                                            lacunarity,
+                                                            persistence
             );
-            continent = (continent + 1.0f) * 0.5f; // [-1,1] -> [0,1]
+            
+            continent = glm::clamp(continent, -1.0f, 1.0f); // [-1,1]
+
+            // Determine base height from continentalness ranges
+            float baseHeight;
+            if (continent < -1.05f) { // Mushroom fields
+                baseHeight = terrainParams.seaLevel + 100;
+            }
+            else if (continent < -0.455f) { // Deep ocean
+                baseHeight = terrainParams.seaLevel - 20;
+            }
+            else if (continent < -0.19f) { // Ocean
+                baseHeight = terrainParams.seaLevel - 10;
+            }
+            else { // Inland
+                // Map inland range to height increase
+                baseHeight = terrainParams.seaLevel + (continent * 40.0f);
+            }
+
+            // float hills = noise.fractalBrownianMotion2D(wx * 0.005f,
+            //                                             wz * 0.005f,
+            //                                             4,
+            //                                             2.0f,
+            //                                             0.5f) * 15.0f;
+
+            int surfaceY = int(baseHeight);
+            surfaceY = glm::clamp(surfaceY, 1, HEIGHT - 2);
+
+            //============================
 
             // int surfaceY = int(continent * 30 + terrainParams.seaLevel);
             // surfaceY = glm::clamp(surfaceY, 1, HEIGHT - 20);
-            int surfaceY = continent * HEIGHT;
+            // int surfaceY = continent * HEIGHT;
 
 
 
@@ -175,7 +207,7 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
 
             // Surface/top
             blocks.at(x, surfaceY, z) =
-                (surfaceY <= terrainParams.seaLevel ? (top == BlockType::SAND ? BlockType::SAND : BlockType::DIRT) : top);
+                (surfaceY <= terrainParams.seaLevel ? BlockType::SAND : top);
 
             if (surfaceY == HEIGHT - 1) {
                 // Cap the top with grass
