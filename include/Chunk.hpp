@@ -11,7 +11,6 @@
 #include <iostream>
 #include <ostream>
 #include "Shader.hpp"
-#include "FastNoiseLite.h"
 
 #include <random>
 #include <unordered_set>
@@ -37,7 +36,6 @@ struct Worm {
     glm::vec3 pos;
 	float radius = 2.0f;
 	int steps = 120;
-	// FastNoiseLite noise;
 
 	Worm(const glm::vec3& p, float r, int s)
 		: pos(p), radius(r), steps(s) {}

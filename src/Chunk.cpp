@@ -89,10 +89,9 @@ void Chunk::setAdjacentChunks(const int direction, std::shared_ptr<Chunk> &chunk
 
 void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
 
-    FastNoiseLite noise;
-    noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    noise.SetFrequency(0.1f);
-
+    Noise noise;
+    noise.setFrequency(0.1f); // Adjust frequency for worm carving
+    
     glm::vec3 pos = worm.pos;
     float radius = worm.radius;
     int steps = worm.steps;
@@ -100,8 +99,8 @@ void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
     glm::vec3 dir = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f));
 
     for (int i = 0; i < steps; ++i) {
-        float angleX = noise.GetNoise(pos.x, pos.y, pos.z) * 0.5f;
-        float angleY = noise.GetNoise(pos.y, pos.z, pos.x) * 0.5f;
+        float angleX = noise.getNoise(pos.x, pos.y, pos.z) * 0.5f;
+        float angleY = noise.getNoise(pos.y, pos.z, pos.x) * 0.5f;
 
         glm::mat4 rot =
             glm::rotate(glm::mat4(1.0f), angleX, glm::vec3(1, 0, 0)) *
@@ -143,16 +142,17 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
             const float wz = float(originZ + z);
 
 
-            float continent = noise.fractalBrownianMotion2D(wx * 0.005f,
-                                                            wz * 0.005f,
+            float continent = noise.fractalBrownianMotion2D(wx * 0.002f,
+                                                            wz * 0.002f,
                                                             8,
-                                                            3.0f,
-                                                            0.4f
+                                                            2.0f,
+                                                            0.7f
             );
             continent = (continent + 1.0f) * 0.5f; // [-1,1] -> [0,1]
 
-            int surfaceY = int(continent * 30 + terrainParams.seaLevel);
-            surfaceY = glm::clamp(surfaceY, 1, HEIGHT - 20);
+            // int surfaceY = int(continent * 30 + terrainParams.seaLevel);
+            // surfaceY = glm::clamp(surfaceY, 1, HEIGHT - 20);
+            int surfaceY = continent * HEIGHT;
 
 
 
@@ -177,6 +177,10 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
             blocks.at(x, surfaceY, z) =
                 (surfaceY <= terrainParams.seaLevel ? (top == BlockType::SAND ? BlockType::SAND : BlockType::DIRT) : top);
 
+            if (surfaceY == HEIGHT - 1) {
+                // Cap the top with grass
+                blocks.at(x, surfaceY, z) = BlockType::STONE;
+            }
             // Water up to sea level
             for (int y = surfaceY + 1; y <= terrainParams.seaLevel && y < HEIGHT; ++y)
                 blocks.at(x, y, z) = BlockType::WATER;
