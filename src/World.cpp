@@ -327,7 +327,7 @@ std::size_t World::getTotalChunkCount() const {
 void World::saveRegionsOnExit()
 {
     for (auto it = loadedRegions.begin(); it != loadedRegions.end();) {
-        saveRegion(it->first, it->second);
+        //saveRegion(it->first, it->second);
         it = loadedRegions.erase(it);
     }
 }
@@ -357,7 +357,7 @@ void World::updateRegionStreaming(int currentChunkX, int currentChunkZ) {
     // Unload regions that are not in the 3x3 grid
     for (auto it = loadedRegions.begin(); it != loadedRegions.end();) {
         if (!regionsToKeep.count(*it)) {
-            saveRegion(it->first, it->second);
+            //saveRegion(it->first, it->second);
             it = loadedRegions.erase(it);
         } else {
             ++it;

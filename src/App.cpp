@@ -638,5 +638,5 @@ size_t App::getCurrentRSS() {
 
 void App::saveWorldOnExit()
 {
-	world->saveRegionsOnExit();
+	//world->saveRegionsOnExit();
 }
