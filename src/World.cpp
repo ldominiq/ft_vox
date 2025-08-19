@@ -3,19 +3,92 @@
 //
 
 #include "World.hpp"
+#include "Chunk.hpp"
+#include "TerrainParams.hpp"
+#include <fstream>
+#include <string>
+
+// helper to write PPM
+static void saveHeightmapPPM(const std::string &path, const std::vector<float> &heightmap, int w, int h) {
+    float minH = std::numeric_limits<float>::infinity();
+    float maxH = -std::numeric_limits<float>::infinity();
+    for (float v : heightmap) { minH = std::min(minH, v); maxH = std::max(maxH, v); }
+    // avoid divide by zero
+    float range = (maxH - minH);
+    if (range < 1e-6f) range = 1.0f;
+
+    std::ofstream f(path, std::ios::binary);
+    f << "P6\n" << w << " " << h << "\n255\n";
+    for (int j = 0; j < h; ++j) {
+        for (int i = 0; i < w; ++i) {
+            float v = heightmap[i + j * w];
+            unsigned char c = static_cast<unsigned char>(glm::clamp((v - minH) / range, 0.0f, 1.0f) * 255.0f);
+            unsigned char col[3] = { c, c, c };
+            f.write(reinterpret_cast<char*>(col), 3);
+        }
+    }
+    f.close();
+}
+
+// Dumps a world-sized heightmap by sampling noise without generating chunks
+// centerChunkX/Z: center of the dump in chunk coordinates
+// chunksX/chunksZ: number of chunks across and down (total image = chunksX*Chunk::WIDTH)
+// downsample: sample every N world-voxels to reduce output resolution and cost
+void World::dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample, const std::string &outPath) {
+    TerrainGenerationParams& currentParams = getTerrainParams();
+    if (downsample < 1) downsample = 1;
+
+    // compute world bounds in world-block coordinates
+    const int chunkW = Chunk::WIDTH;
+    const int chunkD = Chunk::DEPTH;
+    const long worldW = static_cast<long>(chunksX) * chunkW;
+    const long worldD = static_cast<long>(chunksZ) * chunkD;
+
+    // top-left world coordinate (block space)
+    long startX = (static_cast<long>(centerChunkX) - chunksX/2) * chunkW;
+    long startZ = (static_cast<long>(centerChunkZ) - chunksZ/2) * chunkD;
+
+    // output resolution after downsampling
+    const int outW = static_cast<int>((worldW + downsample - 1) / downsample);
+    const int outH = static_cast<int>((worldD + downsample - 1) / downsample);
+    std::vector<float> img(outW * outH);
+
+    // create same noise layers used by Chunk::generate, seeded from world terrainParams
+    Noise baseNoise(currentParams.seed + 1);
+    Noise detailNoise(currentParams.seed + 2);
+    Noise warpNoise(currentParams.seed + 3);
+    Noise erosionNoise(currentParams.seed + 237);
+    Noise weirdnessNoise(currentParams.seed + 98789);
+    Noise moistureNoise(currentParams.seed + 54321);
+    Noise riverNoise(currentParams.seed + 99999);
+
+    // sample grid
+    for (int oz = 0, wz = 0; wz < outH; ++wz, oz += downsample) {
+        for (int ox = 0, wx = 0; wx < outW; ++wx, ox += downsample) {
+            const float worldX = float(startX + ox);
+            const float worldZ = float(startZ + oz);
+
+            float finalH = Chunk::computeColumnHeight(currentParams, baseNoise, detailNoise, warpNoise, erosionNoise, weirdnessNoise, riverNoise, worldX, worldZ);
+            img[wx + wz * outW] = finalH;
+        }
+    }
+
+    saveHeightmapPPM(outPath, img, outW, outH);
+    std::cout << "Saved heightmap: " << outPath << " (" << outW << "x" << outH << ")\n";
+}
 
 World::World() {
     std::mt19937 rng(time(nullptr));
     terrainParams.seed = rng();
 
 	regionDirName = "region-" + std::to_string(terrainParams.seed);
-	std::filesystem::create_directories(regionDirName);
+	// std::filesystem::create_directories(regionDirName);
     std::cout << "World seed: " << terrainParams.seed << std::endl;
 }
 
 World::World(int seed) {
 	regionDirName = "region-" + std::to_string(seed);
-	std::filesystem::create_directories(regionDirName);
+	// std::filesystem::create_directories(regionDirName);
     std::mt19937 rng(time(nullptr));
     terrainParams.seed = seed;
 }
@@ -143,7 +216,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
     const int currentChunkX = static_cast<int>(std::floor(cameraPos.x / Chunk::WIDTH));
     const int currentChunkZ = static_cast<int>(std::floor(cameraPos.z / Chunk::DEPTH));
 
-	if (!outOfMemory) {
+	if (false) {
 		try {
 			updateRegionStreaming(currentChunkX, currentChunkZ);
 		} catch (std::exception &e) {

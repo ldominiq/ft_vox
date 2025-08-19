@@ -1,5 +1,6 @@
 #include "Chunk.hpp"
 #include "World.hpp"
+#include <fstream>
 
 // This function maps block type + face to UV offset
 glm::vec2 getTextureOffset(const BlockType type, const int face) {
@@ -130,179 +131,248 @@ void Chunk::carveWorm(Worm &worm, BlockStorage &blocks) {
     }
 }
 
+float Chunk::computeColumnHeight(const TerrainGenerationParams& params,
+                                 Noise& baseNoise, Noise& detailNoise, Noise& warpNoise,
+                                 Noise& erosionNoise, Noise& weirdnessNoise, Noise& riverNoise,
+                                 float worldX, float worldZ)
+{
+    const float freqContinent = 0.0005f;
+    const int octaves = 8;
+    const float lacunarity = 2.0f;
+    const float persistence = 0.5f;
+
+    float continent = baseNoise.fractalBrownianMotion2D(worldX * freqContinent, worldZ * freqContinent, octaves, lacunarity, persistence);
+    continent = glm::clamp(continent, -3.8f, 3.8f);
+
+    // small rolling hills noise (used later for cliffs/mountain mask)
+    float hills = baseNoise.fractalBrownianMotion2D(worldX * 0.005f, worldZ * 0.005f, 5, 2.0f, 0.5f);
+    hills = glm::clamp(hills, 0.0f, 1.0f);
+
+    float erosion = erosionNoise.fractalBrownianMotion2D(worldX * 0.01f, worldZ * 0.01f, 5, 2.0f, 0.5f);
+    erosion = glm::clamp(erosion, -1.0f, 1.0f);
+
+    float weirdness = weirdnessNoise.fractalBrownianMotion2D(worldX * 0.002f, worldZ * 0.002f, 5, 2.0f, 0.5f);
+    weirdness = glm::clamp(weirdness, -1.0f, 1.0f);
+    float PV = 1.0f - fabs(3.0f * fabs(weirdness) - 2.0f);
+
+    float warpX = worldX + warpNoise.getNoise(worldX, worldZ) * 20.0f;
+    float warpZ = worldZ + warpNoise.getNoise(worldZ, worldX) * 20.0f;
+
+    // --- make plains default: small base land elevation, mountains only build inland ---
+    float baseH = static_cast<float>(params.seaLevel);
+
+    // map continent to inlandFactor in [0,1]
+    float inlandFactor = glm::smoothstep(-0.455f, 0.5f, continent);
+
+    // plains baseline: gentle land rise inland (controls how flat the bulk of land is)
+    const float plainsBaseline = 10.0f; // tweakable: low -> more flat plains
+    baseH = params.seaLevel + inlandFactor * plainsBaseline;
+
+    // use erosion/weirdness to vary mountain probability/amplitude
+    float erosionFactor = glm::smoothstep(-1.0f, 1.0f, -erosion);
+
+    // mountainMask: only significant when inlandFactor is reasonably high
+    float mountainMask = glm::smoothstep(0.45f, 0.85f, inlandFactor); // grows from 0 -> 1 inland
+    mountainMask *= params.mountainBoost;
+
+    // PV (peaks/valleys) only matters if mountainMask is present
+    if (mountainMask > 0.15f) {
+        baseH += PV * 40.0f * params.PVBoost * mountainMask; // pockets of peaks
+    }
+
+    // hills contribute but scaled by mountainMask to avoid producing tall hills on near-coast plains
+    float hillsTerm = hills * 20.0f * mountainMask;
+
+    // detail layers (small scale) - always present but smaller amplitude
+    float detailTerm = detailNoise.fractalBrownianMotion2D(warpX * 0.03f, warpZ * 0.03f, 3, 2.0f, 0.5f) * 6.0f * glm::mix(0.6f, 1.0f, mountainMask);
+    float fineDetail = detailNoise.fractalBrownianMotion2D(warpX * 0.1f, warpZ * 0.1f, 2, 2.0f, 0.5f) * 2.0f;
+
+    float finalH = baseH + hillsTerm + detailTerm + fineDetail;
+
+    // rivers: make rarer and less flattening by default (tweak via params)
+    float r = fabs(riverNoise.getNoise(worldX * 0.002f, worldZ * 0.002f));
+    if (r < params.riverThreshold) {
+        // reduce mixing amount so rivers carve less aggressively
+        float mixAmount = glm::smoothstep(params.riverThreshold, 0.0f, r) * params.riverStrength * 0.6f;
+        finalH = glm::mix(finalH, (float)params.seaLevel - 2.0f, glm::clamp(mixAmount, 0.0f, 1.0f));
+    }
+
+    // clamp to sensible world bounds
+    finalH = glm::clamp(finalH, 1.0f, float(Chunk::HEIGHT - 20));
+    return finalH;
+}
+
 void Chunk::generate(const TerrainGenerationParams& terrainParams) {
-    
-    Noise elevationNoise(terrainParams.seed);
+    // Noise instances seeded from world seed (different offsets for independent layers)
+    Noise baseNoise(terrainParams.seed + 1);
+    Noise detailNoise(terrainParams.seed + 2);
+    Noise warpNoise(terrainParams.seed + 3);
     Noise erosionNoise(terrainParams.seed + 237);
     Noise weirdnessNoise(terrainParams.seed + 98789);
+    Noise moistureNoise(terrainParams.seed + 54321);
+    Noise riverNoise(terrainParams.seed + 99999);
 
-    Noise moistureNoise(9999);
+    // local storage
+    BlockStorage blocks;
+    std::vector<float> heightmap(WIDTH * DEPTH, static_cast<float>(terrainParams.seaLevel));
+    std::vector<float> moistureMap(WIDTH * DEPTH, 0.0f);
+    std::vector<float> steepness(WIDTH * DEPTH, 0.0f);
 
-	BlockStorage blocks;
+    // store helper maps so second pass can make smarter decisions
+    std::vector<float> hillsMap(WIDTH * DEPTH, 0.0f);
+    std::vector<float> continentMap(WIDTH * DEPTH, 0.0f);
 
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
+            const int ix = x + WIDTH * z;
             const float wx = float(originX + x);
             const float wz = float(originZ + z);
 
-            const float frequency = 0.0005f;
-            const int octaves = 8;
-            const float lacunarity = 2.0f;
-            const float persistence = 0.5f;
+            
 
-            // BIOME GEN
-            float moisture = (moistureNoise.fractalBrownianMotion2D(wx * frequency,
-                                                            wz * frequency,
-                                                            octaves,
-                                                            lacunarity,
-                                                            persistence
-            ) + 1.0f) * 0.5f;
+            // moisture (for biome choice)
+            float moisture = (moistureNoise.fractalBrownianMotion2D(wx * 0.005f, wz * 0.005f,
+                                                                    8, 2.0f, 0.5f) + 1.0f) * 0.5f;
+            moistureMap[ix] = moisture;
 
-            // TERRAIN GENERATION
-            float continent = elevationNoise.fractalBrownianMotion2D(wx * frequency,
-                                                            wz * frequency,
-                                                            octaves,
-                                                            lacunarity,
-                                                            persistence
-            );
+            float finalH = computeColumnHeight(terrainParams, baseNoise, detailNoise, warpNoise, erosionNoise, weirdnessNoise, riverNoise, wx, wz);
 
-            continent = glm::clamp(continent, -3.8f, 3.8f); // [-3.8, 3.8]
+            heightmap[ix] = finalH;
+        }
+    }
 
-
-            float hills = elevationNoise.fractalBrownianMotion2D(wx * 0.005f,
-                                                                wz * 0.005f,
-                                                                5,
-                                                                2.0f,
-                                                                0.5f);
-
-            hills = glm::clamp(hills, 0.0f, 1.0f); // [0,1]
-
-            float erosion = erosionNoise.fractalBrownianMotion2D(wx * 0.01f,
-                                                                wz * 0.01f,
-                                                                5,
-                                                                2.0f,
-                                                                0.5f);
-
-            erosion = glm::clamp(erosion, -1.0f, 1.0f);
-
-            float weirdness = weirdnessNoise.fractalBrownianMotion2D(wx * 0.002f,
-                                                                    wz * 0.002f,
-                                                                    5,
-                                                                    2.0f,
-                                                                    0.5f);
-
-            weirdness = glm::clamp(weirdness, -1.0f, 1.0f);
-
-            float  PV = 1.0f - fabs(3.0f * fabs(weirdness) - 2.0f);
-
-            float baseHeight = terrainParams.seaLevel;
-
-            // --- Continentalness decides macro elevation ---
-            if (continent > -1.2f && continent < -1.05f) { // Mushroom fields
-                baseHeight = terrainParams.seaLevel + 80.0f;
-            }
-            else if (continent > -1.05f && continent < -0.455f) { // Deep ocean
-                baseHeight = terrainParams.seaLevel - 30.0f;
-            }
-            else if (continent > -0.455f && continent < -0.19f) { // Ocean
-                baseHeight = terrainParams.seaLevel - 10.0f;
-            }
-            else if (continent > -0.19f) { // Inland
-                // coast / near / mid / far inland
-                if (continent < -0.11f)      baseHeight = terrainParams.seaLevel + (continent * 5.0f);
-                else if (continent < 0.03f)  baseHeight = terrainParams.seaLevel + (continent * 40.0f);
-                else if (continent < 0.3f)   baseHeight = terrainParams.seaLevel + (continent * 60.0f);
-                else                         baseHeight = terrainParams.seaLevel + (continent * 100.0f);
-
-                // --- Apply erosion (flattens or exaggerates) ---
-                // low erosion = mountainous, high erosion = flat
-                float erosionFactor = glm::smoothstep(-1.0f, 1.0f, -erosion); 
-                baseHeight += erosionFactor * 30.0f; // exaggerates mountains
-                baseHeight -= (1.0f - erosionFactor) * 10.0f; // flattens lowland
-
-                // --- Apply PV (rivers/peaks) ---
-                if (PV > 0.7f) {
-                    baseHeight += PV * 60.0f; // peaks
-                } else if (PV < -0.85f) {
-                    baseHeight -= 20.0f; // valleys/rivers
+    // NEW: shore smoothing -- compute distance from water and gently ramp nearby heights toward sea
+    {
+        const int W = WIDTH, D = DEPTH;
+        const int R = terrainParams.shoreSmoothRadius;
+        if (R > 0) {
+            const int N = W * D;
+            std::vector<int> dist(N, INT_MAX);
+            std::deque<int> q;
+            // initialize queue with water cells (<= seaLevel)
+            for (int iz = 0; iz < D; ++iz) {
+                for (int ix2 = 0; ix2 < W; ++ix2) {
+                    int index = ix2 + W * iz;
+                    if (heightmap[index] <= terrainParams.seaLevel) {
+                        dist[index] = 0;
+                        q.push_back(index);
+                    }
                 }
             }
+            // BFS 4-neighbor distance
+            while (!q.empty()) {
+                int cur = q.front(); q.pop_front();
+                int cx = cur % W;
+                int cz = cur / W;
+                const int d4x[4] = {1,-1,0,0};
+                const int d4z[4] = {0,0,1,-1};
+                for (int k = 0; k < 4; ++k) {
+                    int nx = cx + d4x[k];
+                    int nz = cz + d4z[k];
+                    if (nx < 0 || nx >= W || nz < 0 || nz >= D) continue;
+                    int nidx = nx + W * nz;
+                    if (dist[nidx] > dist[cur] + 1) {
+                        dist[nidx] = dist[cur] + 1;
+                        if (dist[nidx] < R) q.push_back(nidx); // only propagate until radius
+                    }
+                }
+            }
+            // apply smoothing toward a ramp target based on distance
+            for (int z = 0; z < D; ++z) {
+                for (int x = 0; x < W; ++x) {
+                    int i = x + W * z;
+                    int d = dist[i];
+                    if (d > 0 && d <= R) {
+                        float t = 1.0f - (float(d) / float(R)); // 1 at coast, 0 at radius edge
+                        // target: seaLevel + distance * shoreSlopeFactor (gentle ramp)
+                        float target = float(terrainParams.seaLevel) + float(d) * terrainParams.shoreSlopeFactor;
+                        // mix current height toward target; shoreSmoothStrength controls strength
+                        float mixAmt = t * terrainParams.shoreSmoothStrength;
+                        heightmap[i] = glm::mix(heightmap[i], target, glm::clamp(mixAmt, 0.0f, 1.0f));
+                    }
+                }
+            }
+        }
+    }
 
+    // optional single-pass smoothing to remove tiny spikes (keep light)
+    std::vector<float> tmp(heightmap);
+    for (int x = 1; x < WIDTH - 1; ++x) {
+        for (int z = 1; z < DEPTH - 1; ++z) {
+            int ix = x + WIDTH * z;
+            float sum = 0.0f;
+            for (int ox = -1; ox <= 1; ++ox)
+                for (int oz = -1; oz <= 1; ++oz)
+                    sum += heightmap[(x + ox) + WIDTH * (z + oz)];
+            // blend original + small smoothing to preserve peaks
+            tmp[ix] = glm::mix(heightmap[ix], sum / 9.0f, 0.35f); // weaker smoothing
+        }
+    }
+    heightmap.swap(tmp);
 
+    // second pass: fill blocks from heightmap (deterministic, fast)
+    float cliffSlopeThreshold = currentParams.cliffSlopeThreshold;
+    const int minCliffElevation = currentParams.minCliffElevation;
+    const float hillsThresholdForCliff = 0.55f; // require reasonably hilly area to allow cliffs
 
-            int surfaceY = int(baseHeight);
-            surfaceY = glm::clamp(surfaceY, 1, HEIGHT - 50);
+    for (int x = 0; x < WIDTH; ++x) {
+        for (int z = 0; z < DEPTH; ++z) {
+            int ix = x + WIDTH * z;
+            int surfaceY = static_cast<int>(glm::round(heightmap[ix]));
+            surfaceY = glm::clamp(surfaceY, 1, HEIGHT - 20);
 
-            //============================
+            // compute local slope by central differences (handle edges)
+            float hL = (x > 0) ? heightmap[(x-1) + WIDTH * z] : heightmap[ix];
+            float hR = (x < WIDTH-1) ? heightmap[(x+1) + WIDTH * z] : heightmap[ix];
+            float hD = (z > 0) ? heightmap[x + WIDTH * (z-1)] : heightmap[ix];
+            float hU = (z < DEPTH-1) ? heightmap[x + WIDTH * (z+1)] : heightmap[ix];
 
-            // int surfaceY = int(continent * 30 + terrainParams.seaLevel);
-            // surfaceY = glm::clamp(surfaceY, 1, HEIGHT - 20);
-            // int surfaceY = continent * HEIGHT;
+            float dhdx = (hR - hL) * 0.5f;
+            float dhdz = (hU - hD) * 0.5f;
+            float slope = glm::length(glm::vec2(dhdx, dhdz)); // higher = steeper
 
+            float moisture = moistureMap[ix];
 
-
-            // --- Biome selection (Minecraft-ish) ---
-            BlockType top  = BlockType::GRASS;
+            // decide top/fill, but override if cliff
+            // Mark cliff only when:
+            // - slope is high
+            // - column is well above sea level (minCliffElevation)
+            // - area has hills and is inland (avoid making shoreline cliffs)
+            bool isCliff = (slope > currentParams.cliffSlopeThreshold)
+               && (surfaceY > currentParams.seaLevel + currentParams.minCliffElevation)
+               && (hillsMap[ix] > 0.55f)           // sufficiently hilly
+               && (continentMap[ix] > -0.1f);     // reasonably inland (tweakable)
+            BlockType top = BlockType::GRASS;
             BlockType fill = BlockType::DIRT;
 
+            if (surfaceY <= terrainParams.seaLevel) {
+                top = BlockType::SAND;
+                fill = BlockType::SAND;
+            } else if (isCliff) {
+                // steep slopes -> rock
+                top = BlockType::STONE;
+                fill = BlockType::STONE;
+            } else {
+                if (moisture < 0.25f) { top = BlockType::SAND; fill = BlockType::SAND; } // dry
+                else if (surfaceY > terrainParams.seaLevel + 60) { top = BlockType::SNOW; fill = BlockType::STONE; } // high
+                else { top = BlockType::GRASS; fill = BlockType::DIRT; }
+            }
 
-            // Bedrock-ish base
+            // Bedrock base
             for (int y = 0; y <= terrainParams.bedrockLevel; ++y)
                 blocks.at(x, y, z) = BlockType::BEDROCK;
 
-            // Deep stone
+            // Fill below surface (stone deeper)
             for (int y = terrainParams.bedrockLevel + 1; y < surfaceY - 4; ++y)
                 blocks.at(x, y, z) = BlockType::STONE;
 
-            // Subsurface filler
+            // near-surface fill
             for (int y = std::max(terrainParams.bedrockLevel + 1, surfaceY - 4); y < surfaceY; ++y)
                 blocks.at(x, y, z) = fill;
 
-            
-
-            if (surfaceY > terrainParams.seaLevel) {
-                if (continent < 0.3f) {
-                    if (moisture < 0.3f) {
-                        std::cout << "Desert at " << x << ", " << surfaceY << ", " << z  << std::endl;
-                        top = BlockType::SAND; // Desert
-                        fill = BlockType::SAND;
-                    } else if (moisture < 0.6f) {
-                        top = BlockType::GRASS; // Plains
-                        fill = BlockType::DIRT;
-                    } else {
-                        top = BlockType::GRASS; // swamp
-                        fill = BlockType::DIRT;
-                    }
-                } else if (continent < 0.7f) { // midland
-                    if (moisture < 0.3f) {
-                        std::cout << "Savanna at " << x << ", " << surfaceY << ", " << z  << std::endl;
-                        top = BlockType::SAND;  // savanna
-                        fill = BlockType::DIRT;
-                    } else if (moisture < 0.6f) {
-                        // std::cout << "Forest at " << x << ", " << surfaceY << ", " << z  << std::endl;
-                        top = BlockType::GRASS; // forest
-                        fill = BlockType::DIRT;
-                    } else {
-                        // std::cout << "Jungle at " << x << ", " << surfaceY << ", " << z  << std::endl;
-                        top = BlockType::GRASS; // jungle
-                        fill = BlockType::DIRT;
-                    }
-                } else { // highland
-                    if (surfaceY > terrainParams.seaLevel + 40) {
-                        std::cout << "Snowy Peaks at " << x << ", " << surfaceY << ", " << z  << std::endl;
-                        top = BlockType::SNOW;  // snowy peaks
-                        fill = BlockType::STONE;
-                    } else {
-                        std::cout << "Mountain Grassland at " << x << ", " << surfaceY << ", " << z  << std::endl;
-                        top = BlockType::GRASS; // mountain grassland
-                        fill = BlockType::STONE;
-                    }
-                }
-            }
-
             // Surface/top
-            blocks.at(x, surfaceY, z) =
-                (surfaceY <= terrainParams.seaLevel ? BlockType::SAND : top);
+            blocks.at(x, surfaceY, z) = top;
+
             // Water up to sea level
             for (int y = surfaceY + 1; y <= terrainParams.seaLevel && y < HEIGHT; ++y)
                 blocks.at(x, y, z) = BlockType::WATER;
@@ -313,7 +383,7 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
         }
     }
 
-    // ========== CAVE GENERATION ==========
+        // ========== CAVE GENERATION ==========
     int range = 2; // simulate worms from this many neighboring chunks
     int worldSeed = 1337;
 
@@ -344,35 +414,9 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
         }
     }
 
-	blockIndices.encodeAll(blocks.getData(), palette, paletteMap);
+    // encode palette and block data (same as before)
+    blockIndices.encodeAll(blocks.getData(), palette, paletteMap);
 }
-
-BlockType Chunk::selectBlockType(int y, int surfaceHeight, float blend,
-                                 const std::vector<BiomeParams>& biomes,
-                                 const std::vector<float>& weights,
-                                 const std::vector<float>& heights) {
-    if (y < surfaceHeight - 5)
-        return BlockType::STONE;
-    if (y < surfaceHeight)
-        return BlockType::DIRT;
-    if (y > surfaceHeight)
-        return BlockType::AIR;
-
-    // Compute contribution = weight * actual height
-    float maxContribution = -1.0f;
-    BlockType topBlock = BlockType::DIRT;
-
-    for (size_t i = 0; i < biomes.size(); ++i) {
-        float contribution = weights[i] * heights[i];
-        if (contribution > maxContribution) {
-            maxContribution = contribution;
-            topBlock = biomes[i].topBlock;
-        }
-    }
-
-    return topBlock;
-}
-
 
 BlockType Chunk::getBlock(int x, int y, int z) const {
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH) {

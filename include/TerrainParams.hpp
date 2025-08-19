@@ -2,72 +2,51 @@
 // Created by lucas on 8/6/25.
 //
 
-#ifndef TERRAINPARAMS_HPP
-#define TERRAINPARAMS_HPP
+#ifndef TERRAIN_PARAMS_HPP
+#define TERRAIN_PARAMS_HPP
 
 #include "Block.hpp"
 #include <vector>
+#include <cstdint>
 
-// ==BIOME PARAMETERS==
-// scaleX/scaleZ = how stretched the biome is
-// amplitude = how high the terrain will be
-// offset = how much the terrain is offset from 0
-// blendMin/blendMax = how much the biome blends with the next one
-// topBlock = the block type at the top of the biome
-struct BiomeParams {
-    float scaleX, scaleZ;
-    float amplitude;
-    float offset;
-    float blendMin, blendMax;
-    BlockType topBlock;
-    bool useBaseNoise;
-};
-
+// Terrain / generation tunables exposed to code / UI
 struct TerrainGenerationParams {
-    int seed = 1336;
+    // deterministic seed
+    int32_t seed = 1337;
 
-    // Noise frequencies
-    float biomeNoiseFreq = 0.0008f; // Large biome regions
-    float baseNoiseFreq = 0.007f; // Main terrain features
-    float detailNoiseFreq = 0.03f; // Small details
+    // basic levels
+    int seaLevel = 62;
+    int bedrockLevel = 0;
 
-    // Sea level and base terrain
-    int seaLevel = 64;
-    int bedrockLevel = 5;
+    // river handling
+    // lower -> fewer rivers, riverStrength 0..1 controls flatten amount
+    float riverThreshold = 0.005f;   // fewer rivers
+    float riverStrength  = 0.25f;    // weaker flattening
 
-    // Continents/coasts
-    float continentFreq = 0.0007f;   // slightly larger landmasses
-    float warpFreq      = 0.0016f;
-    float warpAmp       = 80.0f;
+    // mountain/hill amplification
+    float mountainBoost  = 1.6f;     // stronger mountains inland
+    float PVBoost        = 1.8f;
 
-    // Detail
-    float hillsFreq = 0.0032f;
-    float ridgedFreq= 0.0050f;
-    // Plains vs hills
-    float plainsHillsAmp   = 3.0f;    // small undulation in flat areas
-    float hillsAmp         = 6.0f;
-    // Mountains
-    float mtnBase          = 10.0f;   // base uplift in mountain regions
-    float mtnAmp           = 60.0f;   // mountain height (peaks)
+    // smoothing applied to heightmap (0..1). Lower preserves peaks.
+    float smoothingStrength = 0.25f; // preserve peaks more
 
-    // Climate
-    float tempFreq    = 0.0011f;
-    float moistFreq   = 0.0012f;
-    float latitudeAmp      = 0.15f;   // modest latitude effect (optional)
+    // cliff detection: slope threshold (higher -> fewer cliffs)
+    float cliffSlopeThreshold = 1.6f;
 
-    // Biome/beach/snow
-    float beachWidth = 5.0f;     // wider beaches
-    int   snowLine   = 170;      // snow only on high peaks (HEIGHT=256)
+    // minimum elevation above sea to allow cliffs (prevents shoreline cliffs)
+    int minCliffElevation = 24;
 
+    // Shore smoothing:
+    // radius (in columns) from water to smooth, slopeFactor: how many blocks per column
+    // shoreSmoothStrength: how strongly to mix the height toward the ramp target (0..1)
+    int shoreSmoothRadius = 10;
+    float shoreSlopeFactor = 1.5f;
+    float shoreSmoothStrength = 0.9f;
 
-    // Mountain placement (regional)
-    float mtnMaskFreq      = 0.0008f; // where mountains are allowed (big regions)
-    float mtnMaskThreshold = 0.62f;   // higher → fewer mountain regions
-    float mtnMaskSharpness = 0.10f;   // transition width
+    // heightmap dump settings / helpers (used by World::dumpHeightmap)
+    int genSize = 1000;     // default size for quick dumps
+    int downsample = 16;    // output downsample factor for dumps
 
-    // Climate cells to create cold/snowy plains
-    float coldCellFreq     = 0.0005f; // very big cold regions
-    float coldCellStrength = 0.35f;   // how much they lower temp
 };
 
-#endif //TERRAINPARAMS_HPP
+#endif // TERRAIN_PARAMS_HPP

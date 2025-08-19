@@ -50,6 +50,8 @@ public:
 
     ~World();
 
+    void dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample, const std::string &outPath);
+
 	std::vector<std::weak_ptr<Chunk>> getRenderedChunks();
 
     void updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cameraDir);

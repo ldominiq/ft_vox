@@ -93,7 +93,10 @@ public:
 
 	bool preGenerated = false;
 
-	BlockType selectBlockType(int y, int surfaceHeight, float blend, const std::vector<BiomeParams>& biomes, const std::vector<float>& weights, const std::vector<float>& heights);
+	static float computeColumnHeight(const TerrainGenerationParams& params,
+                                 Noise& baseNoise, Noise& detailNoise, Noise& warpNoise,
+                                 Noise& erosionNoise, Noise& weirdnessNoise, Noise& riverNoise,
+                                 float worldX, float worldZ);
 
 
 private:

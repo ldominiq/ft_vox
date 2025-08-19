@@ -284,6 +284,59 @@ void App::debugWindow() {
 
             ImGui::Separator();
 
+            if (ImGui::CollapsingHeader("Teleportation")) {
+                // Teleport player
+                ImGui::Text("Teleport Player");
+                static float tmpX = 0;
+                static float tmpY = 100;
+                static float tmpZ = 0;
+                ImGui::InputFloat("X", &tmpX);
+                ImGui::InputFloat("Y", &tmpY);
+                ImGui::InputFloat("Z", &tmpZ);
+                if (ImGui::Button("Teleport")) {
+                    camera->Position = glm::vec3(tmpX, tmpY, tmpZ);
+                }
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::CollapsingHeader("World Generation")) {
+                // Terrain params
+                ImGui::Text("Terrain Parameters");
+                ImGui::SliderFloat("mountainBoost", &params.mountainBoost, 0.0f, 3.0f);
+                ImGui::SliderFloat("PVBoost", &params.PVBoost, 0.0f, 3.0f);
+                ImGui::SliderInt("minCliffElevation", &params.minCliffElevation, 0, 100);
+                ImGui::SliderFloat("smoothingStrength", &params.smoothingStrength, 0.0f, 1.0f);
+                ImGui::SliderFloat("cliffSlopeThreshold", &params.cliffSlopeThreshold, 0.0f, 2.0f);
+                
+                ImGui::SliderFloat("riverThreshold", &params.riverThreshold, 0.001f, 0.01f);
+                ImGui::SliderFloat("riverStrength", &params.riverStrength, 0.0f, 1.0f);
+
+                /* shoreSmoothRadius (default 8) controls horizontal extent of smoothing; increase for bigger beaches.
+                    shoreSlopeFactor controls how many vertical blocks per column distance the ramp gains (2.0 is gentle).
+                    shoreSmoothStrength (0..1) controls how strongly heights are pulled toward the ramp.*/
+                ImGui::SliderInt("shoreSmoothRadius", &params.shoreSmoothRadius, 0, 16);
+                ImGui::SliderFloat("shoreSlopeFactor", &params.shoreSlopeFactor, 0.0f, 4.0f);
+                ImGui::SliderFloat("shoreSmoothStrength", &params.shoreSmoothStrength, 0.0f, 1.0f);
+            }
+            
+
+            ImGui::Separator();
+
+            if (ImGui::CollapsingHeader("Heightmap")) {
+                // Create heightmap image
+                ImGui::Text("Heightmap Generation");
+                ImGui::InputInt("Size (ex. 100)", &params.genSize);
+                ImGui::InputInt("Downsample (ex. 8)", &params.downsample);
+                if (ImGui::Button("Generate Heightmap")) {
+                    if (world) {
+                        world->dumpHeightmap(0, 0, params.genSize, params.genSize, params.downsample, "heightmap.ppm");
+                    }
+                }
+            }
+
+            ImGui::Separator();
+
             // Wireframe toggle
             if (ImGui::Checkbox("Wireframe", &wireframe)) {
                 glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
