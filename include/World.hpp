@@ -51,6 +51,7 @@ public:
     ~World();
 
     void dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample, const std::string &outPath);
+    void dumpBiomeMap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample, const std::string &outPath);
 
 	std::vector<std::weak_ptr<Chunk>> getRenderedChunks();
 

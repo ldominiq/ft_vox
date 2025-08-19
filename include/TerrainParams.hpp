@@ -27,6 +27,15 @@ struct TerrainGenerationParams {
     float mountainBoost  = 1.6f;     // stronger mountains inland
     float PVBoost        = 1.8f;
 
+    // Biome control
+    // Size of biome regions in chunks (larger -> larger contiguous biomes)
+    int biomeScaleChunks = 32;
+
+    // Simple thresholds (tweak to taste)
+    float desertMoistureThreshold = 0.28f;
+    float forestMoistureThreshold = 0.65f;
+    float snowTemperatureThreshold = 0.28f;
+
     // smoothing applied to heightmap (0..1). Lower preserves peaks.
     float smoothingStrength = 0.25f; // preserve peaks more
 

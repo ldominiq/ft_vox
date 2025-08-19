@@ -1,6 +1,7 @@
 #include "Chunk.hpp"
 #include "World.hpp"
 #include <fstream>
+#include <cstdlib>
 
 // This function maps block type + face to UV offset
 glm::vec2 getTextureOffset(const BlockType type, const int face) {
@@ -44,6 +45,21 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
     }
 
     return glm::vec2(col, row);
+}
+
+// Save a simple RGB PPM where each pixel is an sRGB color representing the biome
+static void saveBiomePPM(const std::string &path, const std::vector<glm::u8vec3> &img, int w, int h) {
+    std::ofstream f(path, std::ios::binary);
+    f << "P6\n" << w << " " << h << "\n255\n";
+    for (int j = 0; j < h; ++j) {
+        for (int i = 0; i < w; ++i) {
+            const glm::u8vec3 &c = img[i + j * w];
+            f.put(static_cast<char>(c.r));
+            f.put(static_cast<char>(c.g));
+            f.put(static_cast<char>(c.b));
+        }
+    }
+    f.close();
 }
 
 static inline float remap01(float v) { return 0.5f * (v + 1.0f); }  // [-1,1] -> [0,1]
@@ -202,6 +218,69 @@ float Chunk::computeColumnHeight(const TerrainGenerationParams& params,
     return finalH;
 }
 
+BiomeType Chunk::computeColumnBiome(const TerrainGenerationParams& params,
+                                    Noise& baseNoise, Noise& detailNoise, Noise& warpNoise,
+                                    Noise& erosionNoise, Noise& weirdnessNoise, Noise& riverNoise,
+                                    Noise& temperatureNoise, Noise& moistureNoise,
+                                    float worldX, float worldZ, float baseHeight)
+{
+    // If underwater -> ocean biome
+    if (baseHeight <= params.seaLevel) return BiomeType::OCEAN;
+
+    // Build very low-frequency (coarse) climate fields so biomes form large contiguous regions.
+    // biomeScaleChunks controls how many chunks make up a biome patch; use an extra multiplier to ensure broad bands.
+    const float chunks = glm::max(1, params.biomeScaleChunks);
+    const float worldUnitsPerPatch = chunks * Chunk::WIDTH * 8.0f; // make patches even larger
+    const float freqCoarse = 1.0f / glm::max(256.0f, worldUnitsPerPatch);
+
+    // Sample coarse temperature and moisture (0..1)
+    float tempCoarse = (temperatureNoise.fractalBrownianMotion2D(worldX * freqCoarse, worldZ * freqCoarse, 4, 2.0f, 0.5f) + 1.0f) * 0.5f;
+    float moistCoarse = (moistureNoise.fractalBrownianMotion2D(worldX * freqCoarse * 0.9f, worldZ * freqCoarse * 0.9f, 4, 2.0f, 0.5f) + 1.0f) * 0.5f;
+
+    // Small random regional bias so neighboring patches aren't perfectly uniform
+    Noise regionBias(params.seed + 4242);
+    float bias = (regionBias.fractalBrownianMotion2D(worldX * freqCoarse * 0.6f, worldZ * freqCoarse * 0.6f, 3, 2.0f, 0.5f) + 1.0f) * 0.5f;
+
+    // Combine into a simple climate score [0..1] where lower -> cold, higher -> hot/dry
+    float climate = glm::clamp(glm::mix(tempCoarse, 1.0f - moistCoarse, 0.35f) * 0.7f + bias * 0.3f, 0.0f, 1.0f);
+
+    // Compute inland/continent factor so mountains prefer inland
+    float continent = baseNoise.fractalBrownianMotion2D(worldX * 0.0005f, worldZ * 0.0005f, 6, 2.0f, 0.5f);
+    float inlandFactor = glm::smoothstep(-0.455f, 0.5f, continent);
+
+    // Mountain-range mask (medium frequency) - creates continuous ranges
+    float mountainRange = baseNoise.fractalBrownianMotion2D(worldX * 0.0022f, worldZ * 0.0022f, 5, 2.0f, 0.5f);
+    mountainRange = glm::clamp((mountainRange + 1.0f) * 0.5f, 0.0f, 1.0f);
+
+    // Height-driven mountain override: if tall enough, or located in a mountain range and sufficiently inland
+    if (baseHeight > params.seaLevel + 28) {
+        // if high altitude and cold, prefer snow biome (shows as white on biome map)
+        if (tempCoarse < params.snowTemperatureThreshold || baseHeight > params.seaLevel + 60) return BiomeType::SNOW;
+        return BiomeType::MOUNTAIN;
+    }
+    if (mountainRange > 0.58f && inlandFactor > 0.45f) {
+        if (tempCoarse < params.snowTemperatureThreshold) return BiomeType::SNOW;
+        return BiomeType::MOUNTAIN;
+    }
+
+    // Sharpen climate distribution toward extremes so cold/hot regions are more common
+    // Remap climate away from mid-range and amplify extremes
+    climate = glm::clamp((climate - 0.5f) * 1.6f + 0.5f, 0.0f, 1.0f);
+
+    // Snow if very cold OR high altitude + cool
+    if (climate < 0.18f) return BiomeType::SNOW;
+    if (baseHeight > params.seaLevel + 30 && tempCoarse < 0.45f) return BiomeType::SNOW;
+
+    // Forest band: moist and moderately cool
+    if (moistCoarse > params.forestMoistureThreshold * 0.9f && climate < 0.65f) return BiomeType::FOREST;
+
+    // Desert: hot enough and dry
+    if (climate > 0.68f && moistCoarse < (params.desertMoistureThreshold + 0.05f)) return BiomeType::DESERT;
+
+    // Fallback plains
+    return BiomeType::PLAINS;
+}
+
 void Chunk::generate(const TerrainGenerationParams& terrainParams) {
     // Noise instances seeded from world seed (different offsets for independent layers)
     Noise baseNoise(terrainParams.seed + 1);
@@ -210,6 +289,8 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
     Noise erosionNoise(terrainParams.seed + 237);
     Noise weirdnessNoise(terrainParams.seed + 98789);
     Noise moistureNoise(terrainParams.seed + 54321);
+    // temperature noise used to differentiate cold/warm biomes (latitude-like)
+    Noise temperatureNoise(terrainParams.seed + 424242);
     Noise riverNoise(terrainParams.seed + 99999);
 
     // local storage
@@ -221,6 +302,7 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
     // store helper maps so second pass can make smarter decisions
     std::vector<float> hillsMap(WIDTH * DEPTH, 0.0f);
     std::vector<float> continentMap(WIDTH * DEPTH, 0.0f);
+    std::vector<float> temperatureMap(WIDTH * DEPTH, 0.0f);
 
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
@@ -230,14 +312,28 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
 
             
 
-            // moisture (for biome choice)
-            float moisture = (moistureNoise.fractalBrownianMotion2D(wx * 0.005f, wz * 0.005f,
-                                                                    8, 2.0f, 0.5f) + 1.0f) * 0.5f;
+            // moisture (for biome choice) - use much lower frequency for larger patches
+            float moisture = (moistureNoise.fractalBrownianMotion2D(wx * 0.0008f, wz * 0.0008f,
+                                                                    6, 2.0f, 0.5f) + 1.0f) * 0.5f;
             moistureMap[ix] = moisture;
 
             float finalH = computeColumnHeight(terrainParams, baseNoise, detailNoise, warpNoise, erosionNoise, weirdnessNoise, riverNoise, wx, wz);
 
             heightmap[ix] = finalH;
+
+            // store small-scale maps for later decisions
+            // hills: small rolling hills used for cliff detection
+            float hills = baseNoise.fractalBrownianMotion2D(wx * 0.005f, wz * 0.005f, 5, 2.0f, 0.5f);
+            hillsMap[ix] = glm::clamp(hills, 0.0f, 1.0f);
+
+            // continent/inland factor (0..1)
+            float continent = baseNoise.fractalBrownianMotion2D(wx * 0.0005f, wz * 0.0005f, 8, 2.0f, 0.5f);
+            float inlandFactor = glm::smoothstep(-0.455f, 0.5f, continent);
+            continentMap[ix] = inlandFactor;
+
+            // temperature (0..1) - use low frequency similar to moisture to form broad climate bands
+            float temperature = (temperatureNoise.fractalBrownianMotion2D(wx * 0.0009f, wz * 0.0009f, 6, 2.0f, 0.5f) + 1.0f) * 0.5f;
+            temperatureMap[ix] = temperature;
         }
     }
 
@@ -318,6 +414,71 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
             int ix = x + WIDTH * z;
+            // Determine biome-aware height tweaks before finalizing surfaceY
+            const float wx = float(originX + x);
+            const float wz = float(originZ + z);
+
+            float baseH = heightmap[ix];
+            float moisture = moistureMap[ix];
+            float temperature = temperatureMap[ix];
+
+            // small mountain/noise mask to create clustered mountain ranges
+            float mountainNoise = weirdnessNoise.fractalBrownianMotion2D(wx * 0.006f, wz * 0.006f, 4, 2.0f, 0.5f);
+            mountainNoise = glm::clamp(mountainNoise, -1.0f, 1.0f);
+
+            // Decide biome using the centralized coarse-climate sampler so world blocks match the biome map
+            BiomeType biome = Chunk::computeColumnBiome(terrainParams,
+                                                        baseNoise, detailNoise, warpNoise,
+                                                        erosionNoise, weirdnessNoise, riverNoise,
+                                                        temperatureNoise, moistureNoise,
+                                                        wx, wz, baseH);
+
+            // Small majority filter within the chunk to avoid isolated single-column speckles
+            // Count neighbors' biomes in a 3x3 kernel (clamped to chunk bounds)
+            int counts[6] = {0,0,0,0,0,0}; // keep in sync with BiomeType order
+            for (int ox = -1; ox <= 1; ++ox) {
+                for (int oz = -1; oz <= 1; ++oz) {
+                    int nx = glm::clamp(x + ox, 0, WIDTH - 1);
+                    int nz = glm::clamp(z + oz, 0, DEPTH - 1);
+                    float nwx = float(originX + nx);
+                    float nwz = float(originZ + nz);
+                    float nbaseH = heightmap[nx + WIDTH * nz];
+                    BiomeType nb = Chunk::computeColumnBiome(terrainParams,
+                                                            baseNoise, detailNoise, warpNoise,
+                                                            erosionNoise, weirdnessNoise, riverNoise,
+                                                            temperatureNoise, moistureNoise,
+                                                            nwx, nwz, nbaseH);
+                    counts[static_cast<int>(nb)]++;
+                }
+            }
+            // find majority
+            int maxIdx = 0; int maxVal = counts[0];
+            for (int i = 1; i < 6; ++i) if (counts[i] > maxVal) { maxVal = counts[i]; maxIdx = i; }
+            BiomeType majority = static_cast<BiomeType>(maxIdx);
+            // adopt majority if different and strong (>=5 of 9)
+            if (majority != biome && maxVal >= 5) biome = majority;
+
+            // Apply mountain amplification for mountain biomes (post-process height)
+            if (biome == BiomeType::MOUNTAIN) {
+                // mountainRange mask (medium-scale) to create continuous ranges
+                float mountainRange = baseNoise.fractalBrownianMotion2D(wx * 0.0022f, wz * 0.0022f, 5, 2.0f, 0.5f);
+                mountainRange = glm::clamp((mountainRange + 1.0f) * 0.5f, 0.0f, 1.0f);
+                float amp = glm::smoothstep(0.45f, 1.0f, mountainRange) * glm::smoothstep(0.15f, 1.0f, mountainNoise);
+                // ridge noise: higher-frequency ridges add peaks/valleys on mountain ranges
+                float ridge = detailNoise.fractalBrownianMotion2D(wx * 0.08f, wz * 0.08f, 3, 2.0f, 0.5f);
+                ridge = glm::clamp((ridge + 1.0f) * 0.5f, 0.0f, 1.0f);
+                float ridgeAmp = glm::smoothstep(0.4f, 1.0f, ridge);
+                baseH += amp * 60.0f * terrainParams.mountainBoost * (0.7f + 0.6f * ridgeAmp); // stronger boost with ridge detail
+            }
+
+            // Slightly lower deserts to make them flatter and extend beaches in arid areas
+            if (biome == BiomeType::DESERT) {
+                baseH -= 6.0f; // subtle flattening
+            }
+
+            // commit adjusted height
+            heightmap[ix] = baseH;
+
             int surfaceY = static_cast<int>(glm::round(heightmap[ix]));
             surfaceY = glm::clamp(surfaceY, 1, HEIGHT - 20);
 
@@ -331,31 +492,55 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
             float dhdz = (hU - hD) * 0.5f;
             float slope = glm::length(glm::vec2(dhdx, dhdz)); // higher = steeper
 
-            float moisture = moistureMap[ix];
+            float moistureLocal = moistureMap[ix];
+            float temperatureLocal = temperatureMap[ix];
 
             // decide top/fill, but override if cliff
-            // Mark cliff only when:
-            // - slope is high
-            // - column is well above sea level (minCliffElevation)
-            // - area has hills and is inland (avoid making shoreline cliffs)
             bool isCliff = (slope > currentParams.cliffSlopeThreshold)
                && (surfaceY > currentParams.seaLevel + currentParams.minCliffElevation)
                && (hillsMap[ix] > 0.55f)           // sufficiently hilly
                && (continentMap[ix] > -0.1f);     // reasonably inland (tweakable)
+
             BlockType top = BlockType::GRASS;
             BlockType fill = BlockType::DIRT;
 
             if (surfaceY <= terrainParams.seaLevel) {
                 top = BlockType::SAND;
                 fill = BlockType::SAND;
-            } else if (isCliff) {
-                // steep slopes -> rock
-                top = BlockType::STONE;
-                fill = BlockType::STONE;
+            } else if (isCliff || biome == BiomeType::MOUNTAIN) {
+                // steep slopes and mountain biomes -> rocky surfaces; high peaks get snow
+                if (surfaceY > terrainParams.seaLevel + 80 || biome == BiomeType::SNOW) {
+                    top = BlockType::SNOW;
+                    fill = BlockType::STONE;
+                } else {
+                    top = BlockType::STONE;
+                    fill = BlockType::STONE;
+                }
             } else {
-                if (moisture < 0.25f) { top = BlockType::SAND; fill = BlockType::SAND; } // dry
-                else if (surfaceY > terrainParams.seaLevel + 60) { top = BlockType::SNOW; fill = BlockType::STONE; } // high
-                else { top = BlockType::GRASS; fill = BlockType::DIRT; }
+                // Non-cliff selection by biome and conditions
+                switch (biome) {
+                    case BiomeType::DESERT:
+                        top = BlockType::SAND; fill = BlockType::SAND; break;
+                    case BiomeType::FOREST:
+                        top = BlockType::GRASS; fill = BlockType::DIRT; break;
+                    case BiomeType::SNOW:
+                        top = BlockType::SNOW; fill = BlockType::STONE; break;
+                    case BiomeType::PLAINS:
+                    default:
+                        if (moistureLocal < 0.25f) { top = BlockType::SAND; fill = BlockType::SAND; }
+                        else { top = BlockType::GRASS; fill = BlockType::DIRT; }
+                        break;
+                }
+                // high altitude snow override
+                if (surfaceY > terrainParams.seaLevel + 110) {
+                    top = BlockType::SNOW; fill = BlockType::STONE;
+                }
+
+                    // Ensure desert remains sandy even if neighbor logic or smoothing tried to change it
+                    if (biome == BiomeType::DESERT) {
+                        top = BlockType::SAND;
+                        fill = BlockType::SAND;
+                    }
             }
 
             // Bedrock base
@@ -416,6 +601,60 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
 
     // encode palette and block data (same as before)
     blockIndices.encodeAll(blocks.getData(), palette, paletteMap);
+}
+
+// Dump a color-coded biome map as a PPM. Each column maps to a pixel.
+void World::dumpBiomeMap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample, const std::string &outPath) {
+    TerrainGenerationParams& currentParams = getTerrainParams();
+    if (downsample < 1) downsample = 1;
+
+    const int chunkW = Chunk::WIDTH;
+    const int chunkD = Chunk::DEPTH;
+    const long worldW = static_cast<long>(chunksX) * chunkW;
+    const long worldD = static_cast<long>(chunksZ) * chunkD;
+
+    long startX = (static_cast<long>(centerChunkX) - chunksX/2) * chunkW;
+    long startZ = (static_cast<long>(centerChunkZ) - chunksZ/2) * chunkD;
+
+    const int outW = static_cast<int>((worldW + downsample - 1) / downsample);
+    const int outH = static_cast<int>((worldD + downsample - 1) / downsample);
+
+    std::vector<glm::u8vec3> img(outW * outH);
+
+    Noise baseNoise(currentParams.seed + 1);
+    Noise detailNoise(currentParams.seed + 2);
+    Noise warpNoise(currentParams.seed + 3);
+    Noise erosionNoise(currentParams.seed + 237);
+    Noise weirdnessNoise(currentParams.seed + 98789);
+    Noise moistureNoise(currentParams.seed + 54321);
+    Noise riverNoise(currentParams.seed + 99999);
+    Noise temperatureNoise(currentParams.seed + 424242);
+
+    for (int oz = 0, wz = 0; wz < outH; ++wz, oz += downsample) {
+        for (int ox = 0, wx = 0; wx < outW; ++wx, ox += downsample) {
+            const float worldX = float(startX + ox);
+            const float worldZ = float(startZ + oz);
+
+            float baseH = Chunk::computeColumnHeight(currentParams, baseNoise, detailNoise, warpNoise, erosionNoise, weirdnessNoise, riverNoise, worldX, worldZ);
+            BiomeType b = Chunk::computeColumnBiome(currentParams, baseNoise, detailNoise, warpNoise, erosionNoise, weirdnessNoise, riverNoise, temperatureNoise, moistureNoise, worldX, worldZ, baseH);
+
+            glm::u8vec3 color(0,0,0);
+            switch (b) {
+                case BiomeType::PLAINS: color = glm::u8vec3(80,180,70); break; // green
+                case BiomeType::OCEAN: color = glm::u8vec3(40,120,200); break; // blue water
+                case BiomeType::DESERT: color = glm::u8vec3(230,200,120); break; // sand
+                case BiomeType::FOREST: color = glm::u8vec3(20,120,40); break; // dark green
+                case BiomeType::MOUNTAIN: color = glm::u8vec3(130,130,130); break; // grey
+                case BiomeType::SNOW: color = glm::u8vec3(240,240,255); break; // white
+                default: color = glm::u8vec3(0,0,0); break;
+            }
+
+            img[wx + wz * outW] = color;
+        }
+    }
+
+    saveBiomePPM(outPath, img, outW, outH);
+    std::cout << "Saved biome map: " << outPath << " (" << outW << "x" << outH << ")\n";
 }
 
 BlockType Chunk::getBlock(int x, int y, int z) const {

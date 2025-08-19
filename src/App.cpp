@@ -10,6 +10,7 @@
 #include <imgui_impl_opengl3.h>
 #include <unistd.h> // for sysconf
 #include <stdio.h>  // for FILE, fopen
+#include <cstdlib>
 
 GLFWwindow* window;
 
@@ -94,6 +95,19 @@ void App::init() {
 
 	if (seed.has_value()) world = std::make_unique<World>(seed.value());
     else world = std::make_unique<World>();
+
+    // Headless dump helper: if environment variable FTVOX_DUMP_BIOMES is set
+    // call World::dumpBiomeMap and exit. This lets us quickly regenerate the
+    // biome map after changes without interacting with the UI.
+    if (std::getenv("FTVOX_DUMP_BIOMES")) {
+        TerrainGenerationParams &p = world->getTerrainParams();
+        int size = p.genSize;
+        int down = p.downsample;
+        std::string out = "build/biome_map.ppm";
+        std::cout << "FTVOX_DUMP_BIOMES set — generating biome map: " << out << std::endl;
+        world->dumpBiomeMap(0, 0, size, size, down, out);
+        std::exit(0);
+    }
     
     glEnable(GL_DEPTH_TEST);
     
@@ -331,6 +345,11 @@ void App::debugWindow() {
                 if (ImGui::Button("Generate Heightmap")) {
                     if (world) {
                         world->dumpHeightmap(0, 0, params.genSize, params.genSize, params.downsample, "heightmap.ppm");
+                    }
+                }
+                if (ImGui::Button("Generate Biome Map")) {
+                    if (world) {
+                        world->dumpBiomeMap(0, 0, params.genSize, params.genSize, params.downsample, "biome_map.ppm");
                     }
                 }
             }

@@ -52,6 +52,7 @@ enum Direction {
 
 enum class BiomeType {
     PLAINS,
+	OCEAN,
     DESERT,
     FOREST,
     MOUNTAIN,
@@ -97,6 +98,14 @@ public:
                                  Noise& baseNoise, Noise& detailNoise, Noise& warpNoise,
                                  Noise& erosionNoise, Noise& weirdnessNoise, Noise& riverNoise,
                                  float worldX, float worldZ);
+
+	// Compute biome for a single world column using the same noise layers used
+	// for height. Returns a BiomeType (PLAINS, DESERT, FOREST, MOUNTAIN, SNOW).
+	static BiomeType computeColumnBiome(const TerrainGenerationParams& params,
+										Noise& baseNoise, Noise& detailNoise, Noise& warpNoise,
+										Noise& erosionNoise, Noise& weirdnessNoise, Noise& riverNoise,
+										Noise& temperatureNoise, Noise& moistureNoise,
+										float worldX, float worldZ, float baseHeight);
 
 
 private:
