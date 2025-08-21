@@ -310,13 +310,16 @@ static const std::vector<std::pair<float, float>> continentalnessSpline = {
 
     // VALUES REQUIRING TINKERING
 
-    { -1.0f,   0.0f }, // Ocean floor
-    { -0.8f,   0.0f }, // Still ocean (flat lowland)
-    { -0.7f,  77.0f }, // First small rise (shallow shelf)
-    { -0.5f,  77.0f }, // Plateau (coastal plain)
-    { -0.3f, 179.0f }, // Steep rise (continental slope)
-    {  0.2f, 230.0f }, // Gentle slope upward (interior highlands)
-    {  1.0f, 256.0f } // Final plateau (mountains / inland plateau)
+    { -1.0f, 80.0f }, // Ocean floor
+    { -0.9f,  40.0f }, // Deep ocean
+    { -0.7f,  40.0f }, // Shallow ocean
+    { -0.6f,  77.0f }, // First rise
+    { -0.5f,  77.0f }, // Coastal plain
+    { -0.3f, 179.0f }, // Continental slope
+    { -0.28f,179.0f }, // Shelf edge
+    { -0.2f, 185.0f }, // Transition zone
+    {  0.2f, 200.0f }, // Highlands
+    {  1.0f, 210.0f }  // Mountains / plateau
 
 };
 
@@ -324,15 +327,26 @@ static const std::vector<std::pair<float, float>> erosionSpline = {
     // VALUES REQUIRING TINKERING
     { -1.00f, 256.0f },
     { -0.76f, 210.0f },
-    { -0.44f, 150.0f },
+    { -0.44f, 170.0f },
     { -0.10f, 120.0f },
-    {  0.04f, 160.0f },   // small local bump near slightly-positive erosion
-    {  0.24f,  24.0f },
-    {  0.44f,  20.0f },
-    {  0.72f, 60.0f },   // isolated spike
-    {  0.79f, 60.0f },   // isolated spike
-    {  0.84f,  18.0f },
-    {  1.00f,  12.0f }
+    {  0.03f, 135.0f },
+    {  0.33f,  50.0f },
+    {  0.55f,  45.0f },
+    {  0.70f,  45.0f },
+    {  0.72f,  65.0f },
+    {  0.83f,  65.0f },
+    {  0.86f,  45.0f },
+    {  1.00f,  42.0f }
+
+};
+
+static const std::vector<std::pair<float, float>> peakValleySpline = {
+    // VALUES REQUIRING TINKERING
+    { -1.00f, 40.0f },
+    { -0.76f, 60.0f },
+    { -0.44f, 120.0f },
+    { 0.10f, 200.0f },
+    {  1.00f, 256.0f }
 };
 
 // Linear interpolation between spline points
@@ -352,7 +366,6 @@ float Chunk::interpolateSpline(float noise, const std::vector<std::pair<float, f
 }
 
 float Chunk::getContinentalness(const TerrainGenerationParams& terrainParams, float wx, float wz) {
-    // Noise instances seeded from world seed (different offsets for independent layers)
     Noise baseNoise(terrainParams.seed);
 
     const float frequency = 0.001f;
@@ -375,20 +388,46 @@ float Chunk::getContinentalness(const TerrainGenerationParams& terrainParams, fl
     return continentalness;
 }
 
+float Chunk::getErosion(const TerrainGenerationParams& terrainParams, float wx, float wz) {
+    Noise erosionNoise(terrainParams.seed + 237);
+
+    const float frequency = 0.01f;
+    const int octaves = 5;
+    const float persistence = 0.5f;
+    const float lacunarity = 2.0f;
+
+    float erosion = erosionNoise.fractalBrownianMotion2D(wx * frequency, wz * frequency, octaves, lacunarity, persistence);
+    // Scale and clamp to [-1, 1]
+    float scaleFactor = 2.5f;
+    erosion = glm::clamp(erosion * scaleFactor, -1.0f, 1.0f);
+    return erosion;
+}
+
+float Chunk::getPV(const TerrainGenerationParams& terrainParams, float wx, float wz) {
+    Noise peakValleyNoise(terrainParams.seed + 98789);
+
+    const float frequency = 0.002f;
+    const int octaves = 5;
+    const float persistence = 0.5f;
+    const float lacunarity = 2.0f;
+
+    float peakValley = peakValleyNoise.fractalBrownianMotion2D(wx * frequency, wz * frequency, octaves, lacunarity, persistence);
+    // Scale and clamp to [-1, 1]
+    peakValley = glm::clamp(peakValley, -1.0f, 1.0f);
+
+    return peakValley;
+}
+
 float Chunk::surfaceNoiseTransformation(float noise, int splineIndex) {
     float noiseTransform = 0.0f;
     if (splineIndex == 1)
         noiseTransform = interpolateSpline(noise, continentalnessSpline);
     else if (splineIndex == 2)
         noiseTransform = interpolateSpline(noise, erosionSpline);
+    else if (splineIndex == 3)
+        noiseTransform = interpolateSpline(noise, peakValleySpline);
 
     return noiseTransform;
-}
-
-float Chunk::getErosion(const TerrainGenerationParams& params, float wx, float wz) {
-    Noise erosionNoise(params.seed + 237);
-    float erosion = erosionNoise.fractalBrownianMotion2D(wx * 0.01f, wz * 0.01f, 5, 2.0f, 0.5f);
-    return glm::clamp(erosion, -1.0f, 1.0f);
 }
 
 void Chunk::generate(const TerrainGenerationParams& terrainParams) {
@@ -407,8 +446,8 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
 
             float contF = surfaceNoiseTransformation(continentalness, 1);
             float eroF = surfaceNoiseTransformation(erosion, 2);
-            float surfF = contF - eroF;
-            int surfaceY = static_cast<int>(std::floor(surfF + 0.5f)); // round
+            float surfF = contF - (HEIGHT - eroF);
+            int surfaceY = static_cast<int>(std::floor(surfF)); // round
             surfaceY = glm::clamp(surfaceY, 0, HEIGHT - 1);
 
             #ifndef NDEBUG
@@ -437,15 +476,15 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
             for (int y = std::max(terrainParams.seaLevel + 1, surfaceY + 1); y < HEIGHT; ++y)
                 blocks.at(x, y, z) = BlockType::AIR;
 
-            // Water up to sea level
-            for (int y = surfaceY; y <= terrainParams.seaLevel && y < HEIGHT; ++y)
-                blocks.at(x, y, z) = BlockType::WATER;
+            // // Water up to sea level
+            // for (int y = surfaceY; y <= terrainParams.seaLevel && y < HEIGHT; ++y)
+            //     blocks.at(x, y, z) = BlockType::WATER;
 
-            // surface replacement (biome dependent)
-            for (int y = std::max(terrainParams.bedrockLevel + 1, surfaceY - 3); y < surfaceY && y < HEIGHT; ++y)
-                blocks.at(x, y, z) = fill;
+            // // surface replacement (biome dependent)
+            // for (int y = std::max(terrainParams.bedrockLevel + 1, surfaceY - 3); y < surfaceY && y < HEIGHT; ++y)
+            //     blocks.at(x, y, z) = fill;
 
-            blocks.at(x, surfaceY, z) = top;
+            // blocks.at(x, surfaceY, z) = top;
 
         }
     }

@@ -289,6 +289,7 @@ void App::debugWindow() {
 
             ImGui::Text("Continentalness: %.3f", Chunk::getContinentalness(params, wx, wz));
             ImGui::Text("Erosion: %.3f", Chunk::getErosion(params, wx, wz));
+            ImGui::Text("Peak/Valley: %.3f", Chunk::getPV(params, wx, wz));
 
             // Additional metrics: number of loaded chunks and approximate memory usage
             if (world) {

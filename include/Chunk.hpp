@@ -104,6 +104,7 @@ public:
 
 	static float getContinentalness(const TerrainGenerationParams& terrainParams, float wx, float wz);
 	static float getErosion(const TerrainGenerationParams& params, float wx, float wz);
+	static float getPV(const TerrainGenerationParams& terrainParams, float wx, float wz);
 
 	static float surfaceNoiseTransformation(float noise, int splineIndex);
 

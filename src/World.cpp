@@ -54,6 +54,7 @@ void World::dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int c
     std::vector<float> img(outW * outH);
     std::vector<float> imgCont(outW * outH);
     std::vector<float> imgEro(outW * outH);
+    std::vector<float> imgPV(outW * outH);
 
     // create same noise layers used by Chunk::generate, seeded from world terrainParams
     // Noise baseNoise(currentParams.seed + 1);
@@ -74,17 +75,26 @@ void World::dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int c
             
             float continentalness = Chunk::getContinentalness(terrainParams, wx, wz);
             float erosion = Chunk::getErosion(terrainParams, wx, wz);
+            float pv = Chunk::getPV(terrainParams, wx, wz);
 
             if (image == 0) {
-                float contF = Chunk::surfaceNoiseTransformation(continentalness, 1);
-                float eroF = Chunk::surfaceNoiseTransformation(erosion, 2);
-                float surfF = contF - eroF;
-                img[wx + wz * outW] = surfF;
-                imgCont[wx + wz * outW] = contF;
-                imgEro[wx + wz * outW] = eroF;
+                float continentalnessH = Chunk::surfaceNoiseTransformation(continentalness, 1);
+                float erosionH = Chunk::surfaceNoiseTransformation(erosion, 2);
+                float pvH = Chunk::surfaceNoiseTransformation(pv, 3);
+
+
+                float surfF = continentalnessH - (256 - erosionH);
+                int surfaceY = static_cast<int>(std::floor(surfF + 0.5f)); // round
+                surfaceY = glm::clamp(surfaceY, 0, 256 - 1);
+                
+                img[wx + wz * outW] = surfaceY;
+                imgCont[wx + wz * outW] = continentalnessH;
+                imgEro[wx + wz * outW] = erosionH;
+                imgPV[wx + wz * outW] = pvH;
             } else if (image == 1) {
                 imgCont[wx + wz * outW] = continentalness;
                 imgEro[wx + wz * outW] = erosion;
+                imgPV[wx + wz * outW] = pv;
             }
             
         }
