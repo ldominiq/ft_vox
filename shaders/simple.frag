@@ -28,8 +28,8 @@ void main() {
 
     vec3 lighting = texColor.rgb * (ambientColor + lightColor * diff);
 
-    FragColor = texColor;
-    //FragColor = vec4(lighting, texColor.a); // Lighting
+    //FragColor = texColor;
+    FragColor = vec4(lighting, texColor.a); // Lighting
     //FragColor = vec4(normalize(Normal) * 0.5 + 0.5, 1.0); // Visualize normals
     //FragColor = vec4(TexCoord, 0.0, 1.0); // Visualize texture coordinates
 

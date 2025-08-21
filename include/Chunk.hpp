@@ -10,6 +10,7 @@
 #include <cmath>
 #include <iostream>
 #include <ostream>
+#include <fstream>
 #include "Shader.hpp"
 
 #include <random>
@@ -21,6 +22,8 @@
 #include "BitPackedArray.hpp"
 #include "TerrainParams.hpp"
 #include "Noise.hpp"
+#include <GLFW/glfw3.h>
+
 
 class World;
 class BlockStorage;
@@ -71,7 +74,10 @@ public:
     Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate = true);
 	Chunk() = default;
 	~Chunk();
-    
+
+    // Release GL resources
+    void releaseGL();
+
     void carveWorm(Worm& worm, BlockStorage &blocks);
     void generate(const TerrainGenerationParams& terrainParams);
 
@@ -93,6 +99,13 @@ public:
 	void uploadMesh();
 
 	bool preGenerated = false;
+
+	static float interpolateSpline(float noise, const std::vector<std::pair<float, float>>& spline);
+
+	static float getContinentalness(const TerrainGenerationParams& terrainParams, float wx, float wz);
+	static float getErosion(const TerrainGenerationParams& params, float wx, float wz);
+
+	static float surfaceNoiseTransformation(float noise, int splineIndex);
 
 	static float computeColumnHeight(const TerrainGenerationParams& params,
                                  Noise& baseNoise, Noise& detailNoise, Noise& warpNoise,
@@ -124,7 +137,8 @@ private:
 	
     int originX; // X coordinate of the chunck origin
     int originZ; // Z coordinate of the chunck origin
-    GLuint VAO = 0, VBO = 0;
+    GLuint VAO = 0;
+    GLuint VBO = 0;
 	uint meshVerticesSize;
     std::vector<float> meshVertices; // Vertices for the mesh
 

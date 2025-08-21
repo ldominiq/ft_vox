@@ -34,7 +34,7 @@ static void saveHeightmapPPM(const std::string &path, const std::vector<float> &
 // centerChunkX/Z: center of the dump in chunk coordinates
 // chunksX/chunksZ: number of chunks across and down (total image = chunksX*Chunk::WIDTH)
 // downsample: sample every N world-voxels to reduce output resolution and cost
-void World::dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample, const std::string &outPath) {
+void World::dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample, int image) {
     TerrainGenerationParams& currentParams = getTerrainParams();
     if (downsample < 1) downsample = 1;
 
@@ -52,30 +52,53 @@ void World::dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int c
     const int outW = static_cast<int>((worldW + downsample - 1) / downsample);
     const int outH = static_cast<int>((worldD + downsample - 1) / downsample);
     std::vector<float> img(outW * outH);
+    std::vector<float> imgCont(outW * outH);
+    std::vector<float> imgEro(outW * outH);
 
     // create same noise layers used by Chunk::generate, seeded from world terrainParams
-    Noise baseNoise(currentParams.seed + 1);
-    Noise detailNoise(currentParams.seed + 2);
-    Noise warpNoise(currentParams.seed + 3);
-    Noise erosionNoise(currentParams.seed + 237);
-    Noise weirdnessNoise(currentParams.seed + 98789);
-    Noise moistureNoise(currentParams.seed + 54321);
-    Noise riverNoise(currentParams.seed + 99999);
+    // Noise baseNoise(currentParams.seed + 1);
+    // Noise detailNoise(currentParams.seed + 2);
+    // Noise warpNoise(currentParams.seed + 3);
+    // Noise erosionNoise(currentParams.seed + 237);
+    // Noise weirdnessNoise(currentParams.seed + 98789);
+    // Noise moistureNoise(currentParams.seed + 54321);
+    // Noise riverNoise(currentParams.seed + 99999);
 
-    // sample grid
     for (int oz = 0, wz = 0; wz < outH; ++wz, oz += downsample) {
         for (int ox = 0, wx = 0; wx < outW; ++wx, ox += downsample) {
             const float worldX = float(startX + ox);
             const float worldZ = float(startZ + oz);
 
-            float finalH = Chunk::computeColumnHeight(currentParams, baseNoise, detailNoise, warpNoise, erosionNoise, weirdnessNoise, riverNoise, worldX, worldZ);
-            img[wx + wz * outW] = finalH;
+            // float finalH = Chunk::computeColumnHeight(currentParams, baseNoise, detailNoise, warpNoise, erosionNoise, weirdnessNoise, riverNoise, worldX, worldZ);
+
+            
+            float continentalness = Chunk::getContinentalness(terrainParams, wx, wz);
+            float erosion = Chunk::getErosion(terrainParams, wx, wz);
+
+            if (image == 0) {
+                float contF = Chunk::surfaceNoiseTransformation(continentalness, 1);
+                float eroF = Chunk::surfaceNoiseTransformation(erosion, 2);
+                float surfF = contF - eroF;
+                img[wx + wz * outW] = surfF;
+                imgCont[wx + wz * outW] = contF;
+                imgEro[wx + wz * outW] = eroF;
+            } else if (image == 1) {
+                imgCont[wx + wz * outW] = continentalness;
+                imgEro[wx + wz * outW] = erosion;
+            }
+            
         }
     }
-
-    saveHeightmapPPM(outPath, img, outW, outH);
-    std::cout << "Saved heightmap: " << outPath << " (" << outW << "x" << outH << ")\n";
+    if (image == 0) {
+        saveHeightmapPPM("heightmap.ppm", img, outW, outH);
+        saveHeightmapPPM("continentalnessHM.ppm", imgCont, outW, outH);
+        saveHeightmapPPM("erosionHM.ppm", imgEro, outW, outH);
+    } else if (image == 1) {
+        saveHeightmapPPM("continentalnessNoise.ppm", imgCont, outW, outH);
+        saveHeightmapPPM("erosionNoise.ppm", imgEro, outW, outH);
+    }
 }
+
 
 World::World() {
     std::mt19937 rng(time(nullptr));

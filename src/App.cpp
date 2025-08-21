@@ -268,6 +268,11 @@ void App::debugWindow() {
         {
             auto& params = world->getTerrainParams();
 
+            glm::vec3 pos = camera->Position;
+            int wx = static_cast<int>(std::floor(pos.x));
+            int wz = static_cast<int>(std::floor(pos.z));
+            int wy = static_cast<int>(std::floor(pos.y));
+
             ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
             if (!uiInteractive) {
                 flags |= ImGuiWindowFlags_NoInputs;
@@ -278,9 +283,12 @@ void App::debugWindow() {
             // Display smoothed FPS and frame time
             ImGui::Text("FPS: %.1f (%.3f ms)", uiDisplayFPS, uiDisplayFPS > 0.0f ? 1000.0f / uiDisplayFPS : 0.0f);
             // Display camera coordinates
-            ImGui::Text("Camera Position: x=%.2f y=%.2f z=%.2f", camera->Position.x, camera->Position.y, camera->Position.z);
+            ImGui::Text("Camera Position: x=%d y=%d z=%d", wx, wy, wz);
 
             ImGui::Text("World SEED: %i", params.seed);
+
+            ImGui::Text("Continentalness: %.3f", Chunk::getContinentalness(params, wx, wz));
+            ImGui::Text("Erosion: %.3f", Chunk::getErosion(params, wx, wz));
 
             // Additional metrics: number of loaded chunks and approximate memory usage
             if (world) {
@@ -342,9 +350,14 @@ void App::debugWindow() {
                 ImGui::Text("Heightmap Generation");
                 ImGui::InputInt("Size (ex. 100)", &params.genSize);
                 ImGui::InputInt("Downsample (ex. 8)", &params.downsample);
-                if (ImGui::Button("Generate Heightmap")) {
+                if (ImGui::Button("Generate Noises")) {
                     if (world) {
-                        world->dumpHeightmap(0, 0, params.genSize, params.genSize, params.downsample, "heightmap.ppm");
+                        world->dumpHeightmap(0, 0, params.genSize, params.genSize, params.downsample, 1);
+                    }
+                }
+                if (ImGui::Button("Generate Heightmaps")) {
+                    if (world) {
+                        world->dumpHeightmap(0, 0, params.genSize, params.genSize, params.downsample, 0);
                     }
                 }
                 if (ImGui::Button("Generate Biome Map")) {

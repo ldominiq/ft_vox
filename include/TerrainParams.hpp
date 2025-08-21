@@ -15,7 +15,7 @@ struct TerrainGenerationParams {
     int32_t seed = 1337;
 
     // basic levels
-    int seaLevel = 62;
+    int seaLevel = 64;
     int bedrockLevel = 0;
 
     // river handling
