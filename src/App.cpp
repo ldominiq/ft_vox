@@ -99,15 +99,15 @@ void App::init() {
     // Headless dump helper: if environment variable FTVOX_DUMP_BIOMES is set
     // call World::dumpBiomeMap and exit. This lets us quickly regenerate the
     // biome map after changes without interacting with the UI.
-    if (std::getenv("FTVOX_DUMP_BIOMES")) {
-        TerrainGenerationParams &p = world->getTerrainParams();
-        int size = p.genSize;
-        int down = p.downsample;
-        std::string out = "build/biome_map.ppm";
-        std::cout << "FTVOX_DUMP_BIOMES set — generating biome map: " << out << std::endl;
-        world->dumpBiomeMap(0, 0, size, size, down, out);
-        std::exit(0);
-    }
+    // if (std::getenv("FTVOX_DUMP_BIOMES")) {
+    //     TerrainGenerationParams &p = world->getTerrainParams();
+    //     int size = p.genSize;
+    //     int down = p.downsample;
+    //     std::string out = "build/biome_map.ppm";
+    //     std::cout << "FTVOX_DUMP_BIOMES set — generating biome map: " << out << std::endl;
+    //     world->dumpBiomeMap(0, 0, size, size, down, out);
+    //     std::exit(0);
+    // }
     
     glEnable(GL_DEPTH_TEST);
     
@@ -323,24 +323,20 @@ void App::debugWindow() {
 
             ImGui::Separator();
 
-            if (ImGui::CollapsingHeader("World Generation")) {
-                // Terrain params
-                ImGui::Text("Terrain Parameters");
-                ImGui::SliderFloat("mountainBoost", &params.mountainBoost, 0.0f, 3.0f);
-                ImGui::SliderFloat("PVBoost", &params.PVBoost, 0.0f, 3.0f);
-                ImGui::SliderInt("minCliffElevation", &params.minCliffElevation, 0, 100);
-                ImGui::SliderFloat("smoothingStrength", &params.smoothingStrength, 0.0f, 1.0f);
-                ImGui::SliderFloat("cliffSlopeThreshold", &params.cliffSlopeThreshold, 0.0f, 2.0f);
-                
-                ImGui::SliderFloat("riverThreshold", &params.riverThreshold, 0.001f, 0.01f);
-                ImGui::SliderFloat("riverStrength", &params.riverStrength, 0.0f, 1.0f);
+            if (ImGui::CollapsingHeader("Noise Generation")) {
+                ImGui::Text("Continentalness Parameters");
+                ImGui::SliderFloat("frequency", &params.continentalnessFrequency, 0.001f, 0.01f);
+                ImGui::SliderInt("octaves", &params.continentalnessOctaves, 0, 10);
+                ImGui::SliderFloat("persistence", &params.continentalnessPersistence, 0.0f, 1.0f);
+                ImGui::SliderFloat("lacunarity", &params.continentalnessLacunarity, 1.0f, 4.0f);
+                ImGui::SliderFloat("scaling factor", &params.continentalnessScalingFactor, 1.0f, 5.0f);
 
-                /* shoreSmoothRadius (default 8) controls horizontal extent of smoothing; increase for bigger beaches.
-                    shoreSlopeFactor controls how many vertical blocks per column distance the ramp gains (2.0 is gentle).
-                    shoreSmoothStrength (0..1) controls how strongly heights are pulled toward the ramp.*/
-                ImGui::SliderInt("shoreSmoothRadius", &params.shoreSmoothRadius, 0, 16);
-                ImGui::SliderFloat("shoreSlopeFactor", &params.shoreSlopeFactor, 0.0f, 4.0f);
-                ImGui::SliderFloat("shoreSmoothStrength", &params.shoreSmoothStrength, 0.0f, 1.0f);
+                ImGui::Text("Erosion Parameters");
+                ImGui::SliderFloat("##frequency", &params.erosionFrequency, 0.001f, 0.02f);
+                ImGui::SliderInt("##octaves", &params.erosionOctaves, 0, 10);
+                ImGui::SliderFloat("##persistence", &params.erosionPersistence, 0.0f, 1.0f);
+                ImGui::SliderFloat("##lacunarity", &params.erosionLacunarity, 1.0f, 4.0f);
+                ImGui::SliderFloat("##scaling factor", &params.erosionScalingFactor, 1.0f, 5.0f);
             }
             
 
@@ -361,11 +357,11 @@ void App::debugWindow() {
                         world->dumpHeightmap(0, 0, params.genSize, params.genSize, params.downsample, 0);
                     }
                 }
-                if (ImGui::Button("Generate Biome Map")) {
-                    if (world) {
-                        world->dumpBiomeMap(0, 0, params.genSize, params.genSize, params.downsample, "biome_map.ppm");
-                    }
-                }
+                // if (ImGui::Button("Generate Biome Map")) {
+                //     if (world) {
+                //         world->dumpBiomeMap(0, 0, params.genSize, params.genSize, params.downsample, "biome_map.ppm");
+                //     }
+                // }
             }
 
             ImGui::Separator();

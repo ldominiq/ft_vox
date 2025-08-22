@@ -56,6 +56,11 @@ void World::dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int c
     std::vector<float> imgEro(outW * outH);
     std::vector<float> imgPV(outW * outH);
 
+    // find min/max of the erosion spline (spline defined in header)
+    float eroMin = std::numeric_limits<float>::infinity();
+    float eroMax = -std::numeric_limits<float>::infinity();
+    for (const auto &p : erosionSpline) { eroMin = glm::min(eroMin, p.second); eroMax = glm::max(eroMax, p.second); }
+
     // create same noise layers used by Chunk::generate, seeded from world terrainParams
     // Noise baseNoise(currentParams.seed + 1);
     // Noise detailNoise(currentParams.seed + 2);
@@ -78,18 +83,37 @@ void World::dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int c
             float pv = Chunk::getPV(terrainParams, wx, wz);
 
             if (image == 0) {
-                float continentalnessH = Chunk::surfaceNoiseTransformation(continentalness, 1);
-                float erosionH = Chunk::surfaceNoiseTransformation(erosion, 2);
                 float pvH = Chunk::surfaceNoiseTransformation(pv, 3);
 
 
-                float surfF = continentalnessH - (256 - erosionH);
-                int surfaceY = static_cast<int>(std::floor(surfF + 0.5f)); // round
+                float continentalness = Chunk::getContinentalness(terrainParams, wx, wz);
+                float erosion = Chunk::getErosion(terrainParams, wx, wz);
+
+                float baseHeight = Chunk::surfaceNoiseTransformation(continentalness, 1);
+                float erosionSplineValue = Chunk::surfaceNoiseTransformation(erosion, 2);
+
+                float erosionNorm = 0.0f;
+                if (eroMax > eroMin) erosionNorm = glm::clamp((erosionSplineValue - eroMin) / (eroMax - eroMin), 0.0f, 1.0f);
+                // Optionally invert so higher spline -> stronger lowering
+                erosionNorm = 1.0f - erosionNorm;
+
+                // Modulate erosion strength by location: coasts should erode less, inland/mountains more
+                float inlandMask = glm::smoothstep(-0.45f, 0.5f, continentalness); // 0 = near coast, 1 = inland
+                // tune min/max erosion in world units (small compared to absolute heights from continentalness spline)
+                const float minErosionStrength = 2.0f;
+                const float maxErosionStrength = 18.0f;
+                float erosionStrength = glm::mix(minErosionStrength, maxErosionStrength, inlandMask);
+
+                // Combine normalized spline severity with strength to get final height delta
+                float erosionDelta = erosionNorm * erosionStrength;
+
+                float surfF= baseHeight - erosionDelta;
+                int surfaceY = static_cast<int>(std::floor(surfF)); // round
                 surfaceY = glm::clamp(surfaceY, 0, 256 - 1);
                 
                 img[wx + wz * outW] = surfaceY;
-                imgCont[wx + wz * outW] = continentalnessH;
-                imgEro[wx + wz * outW] = erosionH;
+                imgCont[wx + wz * outW] = baseHeight;
+                imgEro[wx + wz * outW] = erosionSplineValue;
                 imgPV[wx + wz * outW] = pvH;
             } else if (image == 1) {
                 imgCont[wx + wz * outW] = continentalness;
