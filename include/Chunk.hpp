@@ -103,24 +103,10 @@ public:
 	static float interpolateSpline(float noise, const std::vector<std::pair<float, float>>& spline);
 
 	static float getContinentalness(const TerrainGenerationParams& terrainParams, float wx, float wz);
-	static float getErosion(const TerrainGenerationParams& params, float wx, float wz);
+	static float getErosion(const TerrainGenerationParams& terrainParams, float wx, float wz);
 	static float getPV(const TerrainGenerationParams& terrainParams, float wx, float wz);
 
 	static float surfaceNoiseTransformation(float noise, int splineIndex);
-
-	static float computeColumnHeight(const TerrainGenerationParams& params,
-                                 Noise& baseNoise, Noise& detailNoise, Noise& warpNoise,
-                                 Noise& erosionNoise, Noise& weirdnessNoise, Noise& riverNoise,
-                                 float worldX, float worldZ);
-
-	// Compute biome for a single world column using the same noise layers used
-	// for height. Returns a BiomeType (PLAINS, DESERT, FOREST, MOUNTAIN, SNOW).
-	static BiomeType computeColumnBiome(const TerrainGenerationParams& params,
-										Noise& baseNoise, Noise& detailNoise, Noise& warpNoise,
-										Noise& erosionNoise, Noise& weirdnessNoise, Noise& riverNoise,
-										Noise& temperatureNoise, Noise& moistureNoise,
-										float worldX, float worldZ, float baseHeight);
-
 
 private:
 	TerrainGenerationParams currentParams;

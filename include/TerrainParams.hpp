@@ -40,11 +40,10 @@ static const std::vector<std::pair<float, float>> erosionSpline = {
 
 static const std::vector<std::pair<float, float>> peakValleySpline = {
     // VALUES REQUIRING TINKERING
-    { -1.00f, 40.0f }, // Valleys
-    { -0.85f, 45.0f }, // Low
-    { -0.6f, 60.0f }, 
-    { 0.2f, 65.0f }, // Middle
-    {  0.7f, 90.0f }, // High
+    { -1.00f, -120.0f }, // Valleys
+    { -0.6f, -90.0f },
+    { 0.0f, 0.0f }, // Middle
+    {  0.7f, 120.0f }, // High
     {  1.0f, 190.0f } // Peaks
 };
 
@@ -75,6 +74,13 @@ struct TerrainGenerationParams {
     float erosionPersistence = 0.35f;
     float erosionLacunarity = 2.37f;
     float erosionScalingFactor = 2.0f;
+
+    // Peak / valley noise params
+    float peakValleyFrequency = 0.001f;
+    int peakValleyOctaves = 5;
+    float peakValleyPersistence = 0.271f;
+    float peakValleyLacunarity = 1.438f;
+    float peakValleyScalingFactor = 2.5f;
 
 };
 
