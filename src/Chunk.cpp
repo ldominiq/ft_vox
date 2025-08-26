@@ -281,13 +281,13 @@ BiomeType Chunk::computeBiome(const TerrainGenerationParams& terrainParams, floa
 
     // Coarse climate fields in [0..1]
     float tempCoarse  = (tempNoise.fractalBrownianMotion2D(worldX * freqCoarse,            worldZ * freqCoarse,            4, 2.0f, 0.5f) + 1.0f) * 0.5f;
-    float moistCoarse = (humidNoise.fractalBrownianMotion2D(worldX * freqCoarse * 0.9f,    worldZ * freqCoarse * 0.9f,    4, 2.0f, 0.5f) + 1.0f) * 0.5f;
+    float humidCoarse = (humidNoise.fractalBrownianMotion2D(worldX * freqCoarse * 0.9f,    worldZ * freqCoarse * 0.9f,    4, 2.0f, 0.5f) + 1.0f) * 0.5f;
 
     // Small regional bias
     Noise regionBias(terrainParams.seed + 4242);
     float bias = (regionBias.fractalBrownianMotion2D(worldX * freqCoarse * 0.6f, worldZ * freqCoarse * 0.6f, 3, 2.0f, 0.5f) + 1.0f) * 0.5f;
 
-    float climate = glm::clamp(glm::mix(tempCoarse, 1.0f - moistCoarse, 0.35f) * 0.7f + bias * 0.3f, 0.0f, 1.0f);
+    float climate = glm::clamp(glm::mix(tempCoarse, 1.0f - humidCoarse, 0.35f) * 0.7f + bias * 0.3f, 0.0f, 1.0f);
 
 
     climate = glm::clamp((climate - 0.5f) * 1.2f + 0.5f, 0.0f, 1.0f);
@@ -297,12 +297,13 @@ BiomeType Chunk::computeBiome(const TerrainGenerationParams& terrainParams, floa
         if (tempCoarse < terrainParams.snowTemperatureThreshold) return BiomeType::TUNDRA;
         // return BiomeType::MOUNTAIN;
     // }
-
+    float pv = getPV(terrainParams, worldX, worldZ);
     // --- DESERT: hot + dry, inland, mid elevations ---
-    float aridity = (1.0f - moistCoarse) * tempCoarse;
-    if (aridity > 0.36f &&
+    float aridity = (1.0f - humidCoarse) * tempCoarse;
+    if (aridity > 0.3f &&
         tempCoarse > 0.40f &&
-        moistCoarse < 0.45f
+        humidCoarse < 0.45f &&
+        height <= 90 && pv < 0.2f
         ){
         return BiomeType::DESERT;
         }
@@ -313,13 +314,13 @@ BiomeType Chunk::computeBiome(const TerrainGenerationParams& terrainParams, floa
 
     // SWAMP: wet, low-lying, mild temps
     if (height <= terrainParams.seaLevel + 6 &&
-        moistCoarse > 0.60f &&
+        humidCoarse > 0.60f &&
         tempCoarse > 0.30f && tempCoarse < 0.80f) {
         return BiomeType::SWAMP;
     }
 
     // Forest: moist and not too hot
-    if (moistCoarse > terrainParams.forestMoistureThreshold * 0.9f && climate < 0.65f) return BiomeType::FOREST;
+    if (humidCoarse > terrainParams.forestMoistureThreshold * 0.9f && climate < 0.65f) return BiomeType::FOREST;
 
     return BiomeType::PLAINS;
 
