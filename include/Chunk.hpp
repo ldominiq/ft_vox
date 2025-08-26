@@ -42,6 +42,8 @@ struct Worm {
 	float radius = 2.0f;
 	int steps = 120;
 
+	Worm() : pos(0.0f), radius(0.0f), steps(0) {}
+	
 	Worm(const glm::vec3& p, float r, int s)
 		: pos(p), radius(r), steps(s) {}
 
