@@ -451,17 +451,19 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
 		chunksToBuild.merge(linkNeighbors(chunkX, chunkZ, currChunk));
 	}
 
-	for (auto [chunkX, chunkZ] : chunksToBuild) {
-		std::shared_ptr<Chunk> currChunk = getChunk(chunkX, chunkZ);
+    for (const auto& chunkPos : chunksToBuild) {
+        int chunkX = chunkPos.first;
+        int chunkZ = chunkPos.second;
+        std::shared_ptr<Chunk> currChunk = getChunk(chunkX, chunkZ);
 
-		if (currChunk) 
-		{
-			meshFutures.push_back(std::async(std::launch::async, [chunkX, chunkZ, currChunk]() {
-				currChunk->buildMeshData();
-				return toKey(chunkX, chunkZ);
-			}));
-		}
-	}
+        if (currChunk) 
+        {
+            meshFutures.push_back(std::async(std::launch::async, [chunkX, chunkZ, currChunk]() {
+                currChunk->buildMeshData();
+                return toKey(chunkX, chunkZ);
+            }));
+        }
+    }
 
 	for (auto it = meshFutures.begin(); it != meshFutures.end();) {
 		ChunkPos pos = it->get();

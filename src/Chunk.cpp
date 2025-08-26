@@ -37,6 +37,13 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
             col = 7; row = 0;
             break;
 
+        case BlockType::LOG:
+            col = 8; row = 0;
+            break;
+        case BlockType::LEAVES:
+            col = 9; row = 0;
+            break;
+
         default:
             col = 0; row = 0;
             break;
@@ -68,6 +75,16 @@ Chunk::Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& 
     	generate(params);
 	else preGenerated = true;
     	
+}
+
+Chunk::Chunk() : sourceChunkX(0), sourceChunkZ(0), originX(0), originZ(0),
+		  VAO(0), VBO(0), meshVerticesSize(0),
+		  blockIndices(WIDTH * HEIGHT * DEPTH, 0)
+{
+    adjacentChunks[0].reset();
+    adjacentChunks[1].reset();
+    adjacentChunks[2].reset();
+    adjacentChunks[3].reset();
 }
 
 Chunk::~Chunk() {
@@ -390,10 +407,6 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
             for (int y = std::max(terrainParams.seaLevel + 1, surfaceY + 1); y < HEIGHT; ++y)
                 blocks.at(x, y, z) = BlockType::AIR;
 
-            // Water up to sea level
-            for (int y = surfaceY; y <= terrainParams.seaLevel && y < HEIGHT; ++y)
-                blocks.at(x, y, z) = BlockType::WATER;
-
             // Compute biome
             const BiomeType biome = computeBiome(terrainParams, worldX, worldZ, surfaceY);
 
@@ -407,10 +420,36 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
                         top = BlockType::SNOW;
                         fill = BlockType::DIRT;
                         break;
-                    case BiomeType::FOREST:
-                        top = BlockType::DIRT;
+                    case BiomeType::FOREST: {
+                        top = BlockType::GRASS;
                         fill = BlockType::DIRT;
-                        break; // Could add trees later
+                        // Add trees randomly
+                        if (rand() % 1000 < 10) { // 1% chance to add a tree
+                            int treeHeight = 4 + rand() % 7; // Random height between 4 and 10
+                            top = BlockType::DIRT;
+                            for (int treeY = surfaceY; treeY < surfaceY + treeHeight; treeY++) {
+                                if (treeY >= 0 && treeY < HEIGHT)
+                                    blocks.at(x, treeY, z) = BlockType::LOG;
+                            }
+                            for (int lx = -2; lx <= 2; lx++) {
+                                for (int lz = -2; lz <= 2; lz++) {
+                                    for (int ly = surfaceY + treeHeight - 1; ly <= surfaceY + treeHeight + 1; ly++) {
+                                        int leafX = x + lx;
+                                        int leafY = ly;
+                                        int leafZ = z + lz;
+                                        if (abs(lx) + abs(lz) <= 3 &&
+                                            leafX >= 0 && leafX < WIDTH &&
+                                            leafY >= 0 && leafY < HEIGHT &&
+                                            leafZ >= 0 && leafZ < DEPTH) {
+                                            blocks.at(leafX, leafY, leafZ) = BlockType::LEAVES;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    }
+                        
                     case BiomeType::SWAMP: top = fill = BlockType::SAND; break;
                     case BiomeType::MOUNTAIN: top = fill = BlockType::STONE; break;
                     default:
@@ -419,9 +458,18 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
                 }
 
                 blocks.at(x, y, z) = fill;
-
             }
-            blocks.at(x, surfaceY, z) = top;
+
+            // Water up to sea level
+            for (int y = surfaceY; y <= terrainParams.seaLevel && y < HEIGHT; ++y)
+                blocks.at(x, y, z) = BlockType::WATER;
+
+            // Set top block only if above water
+            if (surfaceY > terrainParams.seaLevel) {
+                blocks.at(x, surfaceY, z) = top;
+            } else {
+                blocks.at(x, surfaceY, z) = BlockType::SAND;
+            }
 
         }
     }
