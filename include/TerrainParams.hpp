@@ -82,6 +82,34 @@ struct TerrainGenerationParams {
     float peakValleyLacunarity = 1.438f;
     float peakValleyScalingFactor = 2.5f;
 
+    // BIOMES
+
+    // Temperature noise params
+    float temperatureFrequency = 0.0012f;
+    int temperatureOctaves = 4;
+    float temperaturePersistence = 0.50f;
+    float temperatureLacunarity = 2.0f;
+    float temperatureScalingFactor = 0.5f;
+
+
+    // Humidity noise params
+    float humidityFrequency = 0.0015f;
+    int humidityOctaves = 4;
+    float humidityPersistence = 0.50f;
+    float humidityLacunarity = 2.0f;
+    float humidityScalingFactor = 0.5f;
+
+    // Size of biome regions in chunks (larger -> larger contiguous biomes)
+    int biomeScaleChunks = 8;
+    bool snapClimateToCells = true;
+    float climateWarpFrequency = 0.0008f;
+    float climateWarpStrength = 180.0f;
+
+    float desertMoistureThreshold = 0.30f;
+    float forestMoistureThreshold = 0.60f;
+    float snowTemperatureThreshold = 0.28f;
+
+
 };
 
 #endif // TERRAIN_PARAMS_HPP

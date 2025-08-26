@@ -55,11 +55,12 @@ enum Direction {
 
 enum class BiomeType {
     PLAINS,
-	OCEAN,
     DESERT,
     FOREST,
-    MOUNTAIN,
-    SNOW
+    TUNDRA,
+	SWAMP,
+	OCEAN,
+	MOUNTAIN
 };
 
 class Chunk {
@@ -106,7 +107,13 @@ public:
 	static float getErosion(const TerrainGenerationParams& terrainParams, float wx, float wz);
 	static float getPV(const TerrainGenerationParams& terrainParams, float wx, float wz);
 
+	static float getTemperature(const TerrainGenerationParams& terrainParams, float wx, float wz);
+	static float getHumidity(const TerrainGenerationParams& terrainParams, float wx, float wz);
+
 	static float surfaceNoiseTransformation(float noise, int splineIndex);
+
+	static int computeTerrainHeight(const TerrainGenerationParams& terrainParams, float worldX, float worldZ);
+	static BiomeType computeBiome(const TerrainGenerationParams& terrainParams, float worldX, float worldZ, int height);
 
 private:
 	TerrainGenerationParams currentParams;

@@ -163,13 +163,14 @@ float Chunk::interpolateSpline(float noise, const std::vector<std::pair<float, f
 float Chunk::getContinentalness(const TerrainGenerationParams& terrainParams, float wx, float wz) {
     Noise baseNoise(terrainParams.seed);
 
+    float fbm = baseNoise.fractalBrownianMotion2D(
+        wx * terrainParams.continentalnessFrequency,
+        wz * terrainParams.continentalnessFrequency,
+        terrainParams.continentalnessOctaves,
+        terrainParams.continentalnessLacunarity,
+        terrainParams.continentalnessPersistence
+        );
 
-    // Get the raw FBM value (already normalized by maxValue in your implementation)
-    float fbm = baseNoise.fractalBrownianMotion2D(wx * terrainParams.continentalnessFrequency, wz * terrainParams.continentalnessFrequency,
-                                               terrainParams.continentalnessOctaves, terrainParams.continentalnessLacunarity, terrainParams.continentalnessPersistence);
-
-    
-    
     fbm *= terrainParams.continentalnessScalingFactor;
     
     float continentalness = glm::clamp(fbm, -3.8f, 3.8f);
@@ -180,7 +181,14 @@ float Chunk::getContinentalness(const TerrainGenerationParams& terrainParams, fl
 float Chunk::getErosion(const TerrainGenerationParams& terrainParams, float wx, float wz) {
     Noise erosionNoise(terrainParams.seed + 237);
 
-    float erosion = erosionNoise.fractalBrownianMotion2D(wx * terrainParams.erosionFrequency, wz * terrainParams.erosionFrequency, terrainParams.erosionOctaves, terrainParams.erosionLacunarity, terrainParams.erosionPersistence);
+    float erosion = erosionNoise.fractalBrownianMotion2D(
+        wx * terrainParams.erosionFrequency,
+        wz * terrainParams.erosionFrequency,
+        terrainParams.erosionOctaves,
+        terrainParams.erosionLacunarity,
+        terrainParams.erosionPersistence
+        );
+
     erosion = glm::clamp(erosion * terrainParams.erosionScalingFactor, -1.0f, 1.0f);
     return erosion;
 }
@@ -188,11 +196,45 @@ float Chunk::getErosion(const TerrainGenerationParams& terrainParams, float wx, 
 float Chunk::getPV(const TerrainGenerationParams& terrainParams, float wx, float wz) {
     Noise peakValleyNoise(terrainParams.seed + 98789);
 
-    float peakValley = peakValleyNoise.fractalBrownianMotion2D(wx * terrainParams.peakValleyFrequency, wz * terrainParams.peakValleyFrequency, terrainParams.peakValleyOctaves, terrainParams.peakValleyLacunarity, terrainParams.peakValleyPersistence);
+    float peakValley = peakValleyNoise.fractalBrownianMotion2D(
+        wx * terrainParams.peakValleyFrequency,
+        wz * terrainParams.peakValleyFrequency,
+        terrainParams.peakValleyOctaves,
+        terrainParams.peakValleyLacunarity,
+        terrainParams.peakValleyPersistence
+        );
 
     peakValley = glm::clamp(peakValley * terrainParams.peakValleyScalingFactor, -1.0f, 1.0f);
 
     return peakValley;
+}
+
+float Chunk::getTemperature(const TerrainGenerationParams& terrainParams, float wx, float wz) {
+    Noise tempNoise(terrainParams.seed + 123);
+
+    float temperature = tempNoise.fractalBrownianMotion2D(
+        wx * terrainParams.temperatureFrequency,
+        wz * terrainParams.temperatureFrequency,
+        terrainParams.temperatureOctaves,
+        terrainParams.temperatureLacunarity,
+        terrainParams.temperaturePersistence
+        ) * terrainParams.temperatureScalingFactor;
+
+    return temperature;
+}
+
+float Chunk::getHumidity(const TerrainGenerationParams& terrainParams, float wx, float wz) {
+    Noise humidNoise(terrainParams.seed + 456);
+
+    float humidity = humidNoise.fractalBrownianMotion2D(
+        wx * terrainParams.humidityFrequency,
+        wz * terrainParams.humidityFrequency,
+        terrainParams.humidityOctaves,
+        terrainParams.humidityLacunarity,
+        terrainParams.humidityPersistence
+        ) * terrainParams.humidityScalingFactor;
+
+    return humidity;
 }
 
 float Chunk::surfaceNoiseTransformation(float noise, int splineIndex) {
@@ -207,61 +249,130 @@ float Chunk::surfaceNoiseTransformation(float noise, int splineIndex) {
     return noiseTransform;
 }
 
-void Chunk::generate(const TerrainGenerationParams& terrainParams) {
+BiomeType Chunk::computeBiome(const TerrainGenerationParams& terrainParams, float worldX, float worldZ, int height) {
 
-    // local storage
-    BlockStorage blocks;
+    // Build very low-frequency (coarse) climate fields so biomes form large contiguous regions.
+    // biomeScaleChunks controls how many chunks make up a biome patch; use an extra multiplier to ensure broad bands.
+    if (height <= terrainParams.seaLevel) return BiomeType::OCEAN;
 
+    Noise tempNoise(terrainParams.seed + 45);
+    Noise humidNoise(terrainParams.seed + 964);
+
+    const float chunks = glm::max(1, terrainParams.biomeScaleChunks);
+    const float worldUnitsPerPatch = chunks * Chunk::WIDTH * 8.0f;
+    const float freqCoarse = 1.0f / glm::max(256.0f, worldUnitsPerPatch);
+
+    // Coarse climate fields in [0..1]
+    float tempCoarse  = (tempNoise.fractalBrownianMotion2D(worldX * freqCoarse,            worldZ * freqCoarse,            4, 2.0f, 0.5f) + 1.0f) * 0.5f;
+    float moistCoarse = (humidNoise.fractalBrownianMotion2D(worldX * freqCoarse * 0.9f,    worldZ * freqCoarse * 0.9f,    4, 2.0f, 0.5f) + 1.0f) * 0.5f;
+
+    // Small regional bias
+    Noise regionBias(terrainParams.seed + 4242);
+    float bias = (regionBias.fractalBrownianMotion2D(worldX * freqCoarse * 0.6f, worldZ * freqCoarse * 0.6f, 3, 2.0f, 0.5f) + 1.0f) * 0.5f;
+
+    float climate = glm::clamp(glm::mix(tempCoarse, 1.0f - moistCoarse, 0.35f) * 0.7f + bias * 0.3f, 0.0f, 1.0f);
+
+
+    climate = glm::clamp((climate - 0.5f) * 1.2f + 0.5f, 0.0f, 1.0f);
+
+    // High, cold overrides
+    // if (height > terrainParams.seaLevel + 28) {
+        if (tempCoarse < terrainParams.snowTemperatureThreshold) return BiomeType::TUNDRA;
+        // return BiomeType::MOUNTAIN;
+    // }
+
+    // --- DESERT: hot + dry, inland, mid elevations ---
+    float aridity = (1.0f - moistCoarse) * tempCoarse;
+    if (aridity > 0.36f &&
+        tempCoarse > 0.40f &&
+        moistCoarse < 0.45f
+        ){
+        return BiomeType::DESERT;
+        }
+
+    // Cold lowlands
+    if (climate < 0.16f) return BiomeType::TUNDRA;
+    if (height > terrainParams.seaLevel + 30 && tempCoarse < 0.45f) return BiomeType::TUNDRA;
+
+    // SWAMP: wet, low-lying, mild temps
+    if (height <= terrainParams.seaLevel + 6 &&
+        moistCoarse > 0.60f &&
+        tempCoarse > 0.30f && tempCoarse < 0.80f) {
+        return BiomeType::SWAMP;
+    }
+
+    // Forest: moist and not too hot
+    if (moistCoarse > terrainParams.forestMoistureThreshold * 0.9f && climate < 0.65f) return BiomeType::FOREST;
+
+    return BiomeType::PLAINS;
+
+
+}
+
+int Chunk::computeTerrainHeight(const TerrainGenerationParams& terrainParams, float worldX, float worldZ) {
     // find min/max of the erosion spline
     float eroMin = std::numeric_limits<float>::infinity();
     float eroMax = -std::numeric_limits<float>::infinity();
     for (const auto &p : erosionSpline) { eroMin = glm::min(eroMin, p.second); eroMax = glm::max(eroMax, p.second); }
 
+    const float continentalness = getContinentalness(terrainParams, worldX, worldZ);
+    const float erosion = getErosion(terrainParams, worldX, worldZ);
+    const float pv = getPV(terrainParams, worldX, worldZ);
+
+    const float baseHeight = surfaceNoiseTransformation(continentalness, 1);
+    const float erosionSplineValue = surfaceNoiseTransformation(erosion, 2);
+    const float pvSplineValue = surfaceNoiseTransformation(pv, 3);
+
+    float erosionNorm = 0.0f;
+    if (eroMax > eroMin) erosionNorm = glm::clamp((erosionSplineValue - eroMin) / (eroMax - eroMin), 0.0f, 1.0f);
+
+    erosionNorm = 1.0f - erosionNorm;
+
+    // Modulate erosion strength by location: coasts should erode less, inland/mountains more
+    const float inlandMask = glm::smoothstep(-0.19f, 3.8f, continentalness); // 0 = near coast, 1 = inland
+    // tune min/max erosion in world units (small compared to absolute heights from continentalness spline)
+    constexpr float minErosionStrength = 2.0f;
+    constexpr float maxErosionStrength = 140.0f;
+    const float erosionStrength = glm::mix(minErosionStrength, maxErosionStrength, inlandMask);
+
+    // Combine normalized spline severity with strength to get final height delta
+    const float erosionDelta = erosionNorm * erosionStrength;
+
+    const float pvFactor = pvSplineValue * (1.0f - erosionNorm);
+
+    const float finalHeight = baseHeight - erosionDelta + pvFactor;
+
+
+    int surfaceY = static_cast<int>(std::floor(finalHeight)); // round
+    surfaceY = glm::clamp(surfaceY, 0, HEIGHT - 1);
+
+    return surfaceY;
+}
+
+void Chunk::generate(const TerrainGenerationParams& terrainParams) {
+
+    // local storage
+    BlockStorage blocks;
+
+
+
     for (int x = 0; x < WIDTH; ++x) {
         for (int z = 0; z < DEPTH; ++z) {
-            const auto wx = static_cast<float>(originX + x);
-            const auto wz = static_cast<float>(originZ + z);
+            const auto worldX = static_cast<float>(originX + x);
+            const auto worldZ = static_cast<float>(originZ + z);
 
-            const float continentalness = getContinentalness(terrainParams, wx, wz);
-            const float erosion = getErosion(terrainParams, wx, wz);
-            const float pv = getPV(terrainParams, wx, wz);
-
-            const float baseHeight = surfaceNoiseTransformation(continentalness, 1);
-            const float erosionSplineValue = surfaceNoiseTransformation(erosion, 2);
-            const float pvSplineValue = surfaceNoiseTransformation(pv, 3);
-
-            float erosionNorm = 0.0f;
-            if (eroMax > eroMin) erosionNorm = glm::clamp((erosionSplineValue - eroMin) / (eroMax - eroMin), 0.0f, 1.0f);
-
-            erosionNorm = 1.0f - erosionNorm;
-
-            // Modulate erosion strength by location: coasts should erode less, inland/mountains more
-            const float inlandMask = glm::smoothstep(-0.19f, 3.8f, continentalness); // 0 = near coast, 1 = inland
-            // tune min/max erosion in world units (small compared to absolute heights from continentalness spline)
-            constexpr float minErosionStrength = 2.0f;
-            constexpr float maxErosionStrength = 140.0f;
-            const float erosionStrength = glm::mix(minErosionStrength, maxErosionStrength, inlandMask);
-
-            // Combine normalized spline severity with strength to get final height delta
-            const float erosionDelta = erosionNorm * erosionStrength;
-
-            const float pvFactor = pvSplineValue * (1.0f - erosionNorm);
-
-            const float finalHeight = baseHeight - erosionDelta + pvFactor;
-
-
-            int surfaceY = static_cast<int>(std::floor(finalHeight)); // round
-            surfaceY = glm::clamp(surfaceY, 0, HEIGHT - 1);
+            const int surfaceY = computeTerrainHeight(terrainParams, worldX, worldZ);
 
             #ifndef NDEBUG
             if (surfaceY < 0 || surfaceY >= HEIGHT) {
-                std::cerr << "Invalid surfaceY: " << surfaceY << " at world (" << wx << "," << wz << ")\n";
+                std::cerr << "Invalid surfaceY: " << surfaceY << " at world (" << worldX << "," << worldZ << ")\n";
             }
             #endif
 
             BlockType top = BlockType::GRASS;
             BlockType fill = BlockType::DIRT;
 
+            // SAND at sea levels
             if (surfaceY < terrainParams.seaLevel) {
                 fill = BlockType::SAND;
                 top = BlockType::SAND;
@@ -280,13 +391,36 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
                 blocks.at(x, y, z) = BlockType::AIR;
 
             // Water up to sea level
-            // for (int y = surfaceY; y <= terrainParams.seaLevel && y < HEIGHT; ++y)
-            //     blocks.at(x, y, z) = BlockType::WATER;
+            for (int y = surfaceY; y <= terrainParams.seaLevel && y < HEIGHT; ++y)
+                blocks.at(x, y, z) = BlockType::WATER;
 
-            // surface replacement (biome dependent)
-            for (int y = std::max(terrainParams.bedrockLevel + 1, surfaceY - 3); y < surfaceY && y < HEIGHT; ++y)
+            // Compute biome
+            const BiomeType biome = computeBiome(terrainParams, worldX, worldZ, surfaceY);
+
+            // Set blocks based on biome
+            for (int y = std::max(terrainParams.bedrockLevel + 1, surfaceY - 3); y < surfaceY && y < HEIGHT; y++) {
+                switch (biome) {
+                    case BiomeType::DESERT:
+                        top = fill = BlockType::SAND;
+                        break;
+                    case BiomeType::TUNDRA:
+                        top = BlockType::SNOW;
+                        fill = BlockType::DIRT;
+                        break;
+                    case BiomeType::FOREST:
+                        top = BlockType::DIRT;
+                        fill = BlockType::DIRT;
+                        break; // Could add trees later
+                    case BiomeType::SWAMP: top = fill = BlockType::SAND; break;
+                    case BiomeType::MOUNTAIN: top = fill = BlockType::STONE; break;
+                    default:
+                        top = BlockType::GRASS;
+                        fill = BlockType::DIRT; // PLAINS
+                }
+
                 blocks.at(x, y, z) = fill;
 
+            }
             blocks.at(x, surfaceY, z) = top;
 
         }

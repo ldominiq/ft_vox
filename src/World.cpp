@@ -30,12 +30,26 @@ static void saveHeightmapPPM(const std::string &path, const std::vector<float> &
     f.close();
 }
 
+// Save a simple RGB PPM where each pixel is an sRGB color representing the biome
+static void saveBiomePPM(const std::string &path, const std::vector<glm::u8vec3> &img, int w, int h) {
+	std::ofstream f(path, std::ios::binary);
+	f << "P6\n" << w << " " << h << "\n255\n";
+	for (int j = 0; j < h; ++j) {
+		for (int i = 0; i < w; ++i) {
+			const glm::u8vec3 &c = img[i + j * w];
+			f.put(static_cast<char>(c.r));
+			f.put(static_cast<char>(c.g));
+			f.put(static_cast<char>(c.b));
+		}
+	}
+	f.close();
+}
+
 // Dumps a world-sized heightmap by sampling noise without generating chunks
 // centerChunkX/Z: center of the dump in chunk coordinates
 // chunksX/chunksZ: number of chunks across and down (total image = chunksX*Chunk::WIDTH)
 // downsample: sample every N world-voxels to reduce output resolution and cost
-void World::dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample, int image) {
-    TerrainGenerationParams& currentParams = getTerrainParams();
+void World::dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample, int image) const {
     if (downsample < 1) downsample = 1;
 
     // compute world bounds in world-block coordinates
@@ -55,71 +69,126 @@ void World::dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int c
     std::vector<float> imgCont(outW * outH);
     std::vector<float> imgEro(outW * outH);
     std::vector<float> imgPV(outW * outH);
-
-    // find min/max of the erosion spline (spline defined in header)
-    float eroMin = std::numeric_limits<float>::infinity();
-    float eroMax = -std::numeric_limits<float>::infinity();
-    for (const auto &p : erosionSpline) { eroMin = glm::min(eroMin, p.second); eroMax = glm::max(eroMax, p.second); }
+    std::vector<float> imgHumidity(outW * outH);
+    std::vector<float> imgTemperature(outW * outH);
 
     for (int oz = 0, wz = 0; wz < outH; ++wz, oz += downsample) {
         for (int ox = 0, wx = 0; wx < outW; ++wx, ox += downsample) {
             const auto worldX = static_cast<float>(startX + ox);
             const auto worldZ = static_cast<float>(startZ + oz);
 
-
-            const float continentalness = Chunk::getContinentalness(terrainParams, worldX, worldZ);
-            const float erosion = Chunk::getErosion(terrainParams, worldX, worldZ);
-            const float pv = Chunk::getPV(terrainParams, worldX, worldZ);
+        	const float continentalness = Chunk::getContinentalness(terrainParams, worldX, worldZ);
+        	const float erosion = Chunk::getErosion(terrainParams, worldX, worldZ);
+        	const float pv = Chunk::getPV(terrainParams, worldX, worldZ);
 
             if (image == 0) {
-                const float baseHeight = Chunk::surfaceNoiseTransformation(continentalness, 1);
-                const float erosionSplineValue = Chunk::surfaceNoiseTransformation(erosion, 2);
-                const float pvSplineValue = Chunk::surfaceNoiseTransformation(pv, 3);
 
-            	float erosionNorm = 0.0f;
-            	if (eroMax > eroMin) erosionNorm = glm::clamp((erosionSplineValue - eroMin) / (eroMax - eroMin), 0.0f, 1.0f);
-
-            	erosionNorm = 1.0f - erosionNorm;
-
-            	// Modulate erosion strength by location: coasts should erode less, inland/mountains more
-            	const float inlandMask = glm::smoothstep(-0.19f, 3.8f, continentalness); // 0 = near coast, 1 = inland
-            	// tune min/max erosion in world units (small compared to absolute heights from continentalness spline)
-                constexpr float minErosionStrength = 2.0f;
-                constexpr float maxErosionStrength = 140.0f;
-            	const float erosionStrength = glm::mix(minErosionStrength, maxErosionStrength, inlandMask);
-
-            	// Combine normalized spline severity with strength to get final height delta
-            	const float erosionDelta = erosionNorm * erosionStrength;
-
-            	const float pvFactor = pvSplineValue * (1.0f - erosionNorm) * 0.5f;
-
-            	const float finalHeight = baseHeight - erosionDelta + pvFactor;
-
-                int surfaceY = static_cast<int>(std::floor(finalHeight)); // round
-                surfaceY = glm::clamp(surfaceY, 0, 256 - 1);
+                const int surfaceY = Chunk::computeTerrainHeight(terrainParams, worldX, worldZ);
                 
                 img[wx + wz * outW] = surfaceY;
-                imgCont[wx + wz * outW] = baseHeight;
-                imgEro[wx + wz * outW] = erosionDelta;
-                imgPV[wx + wz * outW] = pvFactor;
+                // imgCont[wx + wz * outW] = baseHeight;
+                // imgEro[wx + wz * outW] = erosionDelta;
+                // imgPV[wx + wz * outW] = pvFactor;
             } else if (image == 1) {
                 imgCont[wx + wz * outW] = continentalness;
                 imgEro[wx + wz * outW] = erosion;
                 imgPV[wx + wz * outW] = pv;
+            	imgHumidity[wx + wz * outW] = Chunk::getHumidity(terrainParams, worldX, worldZ);
+            	imgTemperature[wx + wz * outW] = Chunk::getTemperature(terrainParams, worldX, worldZ);
+
             }
             
         }
     }
     if (image == 0) {
         saveHeightmapPPM("heightmap.ppm", img, outW, outH);
-        saveHeightmapPPM("continentalnessHM.ppm", imgCont, outW, outH);
-        saveHeightmapPPM("erosionHM.ppm", imgEro, outW, outH);
-    	saveHeightmapPPM("pvHM.ppm", imgPV, outW, outH);
+     //    saveHeightmapPPM("continentalnessHM.ppm", imgCont, outW, outH);
+     //    saveHeightmapPPM("erosionHM.ppm", imgEro, outW, outH);
+    	// saveHeightmapPPM("pvHM.ppm", imgPV, outW, outH);
     } else if (image == 1) {
         saveHeightmapPPM("continentalnessNoise.ppm", imgCont, outW, outH);
         saveHeightmapPPM("erosionNoise.ppm", imgEro, outW, outH);
     	saveHeightmapPPM("pvNoise.ppm", imgPV, outW, outH);
+    	saveHeightmapPPM("humidNoise.ppm", imgHumidity, outW, outH);
+    	saveHeightmapPPM("tempNoise.ppm", imgTemperature, outW, outH);
     }
+}
+
+// Dump a color-coded biome map as a PPM. Each column maps to a pixel.
+void World::dumpBiomeMap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample) {
+    // Validate inputs
+    if (downsample <= 0) downsample = 1;
+    if (chunksX <= 0 || chunksZ <= 0) return;
+
+    // Compute image dimensions with ceil-division to avoid 0 and off-by-one
+    const int chunkW = Chunk::WIDTH;
+    const int chunkD = Chunk::DEPTH;
+    const int worldW = chunksX * chunkW;
+    const int worldH = chunksZ * chunkD;
+    const int imgW = (worldW + downsample - 1) / downsample;
+    const int imgH = (worldH + downsample - 1) / downsample;
+
+    // Guard against absurd sizes
+    if (imgW <= 0 || imgH <= 0) return;
+
+    // Pre-size output and only index inside [0, size)
+    std::vector<glm::u8vec3> pixels;
+    pixels.resize(static_cast<size_t>(imgW) * static_cast<size_t>(imgH));
+
+    // Compute the starting world position (top-left) in block coords
+    const int startChunkX = centerChunkX - chunksX / 2;
+    const int startChunkZ = centerChunkZ - chunksZ / 2;
+    const int startWorldX = startChunkX * chunkW;
+    const int startWorldZ = startChunkZ * chunkD;
+
+    // Iterate over world-space in steps of downsample and fill pixels
+    for (int z = 0; z < worldH; z += downsample) {
+        // Compute y (row) index using ceil-division consistent with imgH
+        const int py = z / downsample;
+        if (py >= imgH) break; // safety
+
+        for (int x = 0; x < worldW; x += downsample) {
+            const int px = x / downsample;
+            if (px >= imgW) break; // safety
+
+            // Map to world coordinates
+            const float wx = static_cast<float>(startWorldX + x);
+            const float wz = static_cast<float>(startWorldZ + z);
+
+            // Sample your biome function (replace with your logic)
+            const int height = Chunk::computeTerrainHeight(terrainParams, wx, wz);
+            const BiomeType biome = Chunk::computeBiome(terrainParams, wx, wz, height);
+
+            glm::u8vec3 color;
+            switch (biome) {
+                case BiomeType::PLAINS:  color = { 80, 200, 120 }; break;
+                case BiomeType::DESERT:  color = { 210, 180, 80 }; break;
+                case BiomeType::FOREST:  color = { 40, 160, 60 }; break;
+                case BiomeType::TUNDRA:  color = { 200, 220, 230 }; break;
+                case BiomeType::SWAMP:   color = { 150, 140, 45 }; break;
+                case BiomeType::OCEAN:   color = { 40, 60, 160 }; break;
+            	case BiomeType::MOUNTAIN: color = { 100, 100, 100 }; break;
+                default:                  color = { 255, 0, 255 }; break;
+            }
+
+            const size_t idx = static_cast<size_t>(py) * static_cast<size_t>(imgW)
+                             + static_cast<size_t>(px);
+            if (idx < pixels.size()) {
+                pixels[idx] = color;
+            }
+        }
+    }
+
+
+	std::ofstream out("biome.ppm", std::ios::binary);
+	out << "P6\n" << imgW << " " << imgH << "\n255\n";
+	for (size_t i = 0; i < pixels.size(); ++i) {
+		const glm::u8vec3 c = pixels[i];
+		char rgb[3] = { static_cast<char>(c.r),
+						static_cast<char>(c.g),
+						static_cast<char>(c.b) };
+		out.write(rgb, 3);
+	}
 }
 
 

@@ -290,6 +290,21 @@ void App::debugWindow() {
             ImGui::Text("Continentalness: %.3f", Chunk::getContinentalness(params, wx, wz));
             ImGui::Text("Erosion: %.3f", Chunk::getErosion(params, wx, wz));
             ImGui::Text("Peak/Valley: %.3f", Chunk::getPV(params, wx, wz));
+            ImGui::Text("Temperature: %.3f", Chunk::getTemperature(params, wx, wz));
+            ImGui::Text("Humidity: %.3f", Chunk::getHumidity(params, wx, wz));
+
+            BiomeType biome = Chunk::computeBiome(params, wx, wz, Chunk::computeTerrainHeight(params, wx, wz));
+            const char* biomeName =
+                (biome == BiomeType::PLAINS) ? "PLAINS" :
+                (biome == BiomeType::DESERT) ? "DESERT" :
+                (biome == BiomeType::FOREST) ? "FOREST" :
+                (biome == BiomeType::TUNDRA) ? "TUNDRA" :
+                (biome == BiomeType::SWAMP)  ? "SWAMP"  :
+                (biome == BiomeType::OCEAN)  ? "OCEAN"  :
+                (biome == BiomeType::MOUNTAIN) ? "MOUNTAIN" :
+                                               "UNKNOWN";
+            ImGui::Text("BIOME: %s", biomeName);
+
 
             // Additional metrics: number of loaded chunks and approximate memory usage
             if (world) {
@@ -324,26 +339,45 @@ void App::debugWindow() {
             ImGui::Separator();
 
             if (ImGui::CollapsingHeader("Noise Generation")) {
-                ImGui::Text("Continentalness Parameters");
-                ImGui::SliderFloat("frequency", &params.continentalnessFrequency, 0.001f, 0.01f);
-                ImGui::SliderInt("octaves", &params.continentalnessOctaves, 1, 10);
-                ImGui::SliderFloat("persistence", &params.continentalnessPersistence, 0.0f, 1.0f);
-                ImGui::SliderFloat("lacunarity", &params.continentalnessLacunarity, 1.0f, 4.0f);
-                ImGui::SliderFloat("scaling factor", &params.continentalnessScalingFactor, 1.0f, 5.0f);
+                if (ImGui::CollapsingHeader("Continentalness Parameters")) {
+                    ImGui::SliderFloat("frequency", &params.continentalnessFrequency, 0.001f, 0.01f);
+                    ImGui::SliderInt("octaves", &params.continentalnessOctaves, 1, 10);
+                    ImGui::SliderFloat("persistence", &params.continentalnessPersistence, 0.0f, 1.0f);
+                    ImGui::SliderFloat("lacunarity", &params.continentalnessLacunarity, 1.0f, 4.0f);
+                    ImGui::SliderFloat("scaling factor", &params.continentalnessScalingFactor, 1.0f, 5.0f);
+                }
 
-                ImGui::Text("Erosion Parameters");
-                ImGui::SliderFloat("#frequency", &params.erosionFrequency, 0.001f, 0.02f);
-                ImGui::SliderInt("#octaves", &params.erosionOctaves, 1, 10);
-                ImGui::SliderFloat("#persistence", &params.erosionPersistence, 0.0f, 1.0f);
-                ImGui::SliderFloat("#lacunarity", &params.erosionLacunarity, 1.0f, 4.0f);
-                ImGui::SliderFloat("#scaling factor", &params.erosionScalingFactor, 1.0f, 5.0f);
+                if (ImGui::CollapsingHeader("Erosion Parameters")) {
+                    ImGui::SliderFloat("#frequency", &params.erosionFrequency, 0.001f, 0.02f);
+                    ImGui::SliderInt("#octaves", &params.erosionOctaves, 1, 10);
+                    ImGui::SliderFloat("#persistence", &params.erosionPersistence, 0.0f, 1.0f);
+                    ImGui::SliderFloat("#lacunarity", &params.erosionLacunarity, 1.0f, 4.0f);
+                    ImGui::SliderFloat("#scaling factor", &params.erosionScalingFactor, 1.0f, 5.0f);
+                }
 
-                ImGui::Text("Peak/Valley Parameters");
-                ImGui::SliderFloat("-frequency", &params.peakValleyFrequency, 0.001f, 0.09f);
-                ImGui::SliderInt("-octaves", &params.peakValleyOctaves, 1, 10);
-                ImGui::SliderFloat("-persistence", &params.peakValleyPersistence, 0.0f, 1.0f);
-                ImGui::SliderFloat("-lacunarity", &params.peakValleyLacunarity, 1.0f, 4.0f);
-                ImGui::SliderFloat("-scaling factor", &params.peakValleyScalingFactor, 1.0f, 5.0f);
+                if (ImGui::CollapsingHeader("Peak/Valley Parameters")) {
+                    ImGui::SliderFloat("-frequency", &params.peakValleyFrequency, 0.001f, 0.09f);
+                    ImGui::SliderInt("-octaves", &params.peakValleyOctaves, 1, 10);
+                    ImGui::SliderFloat("-persistence", &params.peakValleyPersistence, 0.0f, 1.0f);
+                    ImGui::SliderFloat("-lacunarity", &params.peakValleyLacunarity, 1.0f, 4.0f);
+                    ImGui::SliderFloat("-scaling factor", &params.peakValleyScalingFactor, 1.0f, 5.0f);
+                }
+
+                if (ImGui::CollapsingHeader("Temperature Parameters")) {
+                    ImGui::SliderFloat("--frequency", &params.temperatureFrequency, 0.0001f, 0.0012f);
+                    ImGui::SliderInt("--octaves", &params.temperatureOctaves, 1, 10);
+                    ImGui::SliderFloat("--persistence", &params.temperaturePersistence, 0.0f, 1.0f);
+                    ImGui::SliderFloat("--lacunarity", &params.temperatureLacunarity, 1.0f, 4.0f);
+                    ImGui::SliderFloat("--scaling factor", &params.temperatureScalingFactor, 1.0f, 5.0f);
+                }
+
+                if (ImGui::CollapsingHeader("Humidity Parameters")) {
+                    ImGui::SliderFloat("---frequency", &params.humidityFrequency, 0.0005f, 0.0015f);
+                    ImGui::SliderInt("---octaves", &params.humidityOctaves, 1, 10);
+                    ImGui::SliderFloat("---persistence", &params.humidityPersistence, 0.0f, 1.0f);
+                    ImGui::SliderFloat("---lacunarity", &params.humidityLacunarity, 1.0f, 4.0f);
+                    ImGui::SliderFloat("---scaling factor", &params.humidityScalingFactor, 1.0f, 5.0f);
+                }
             }
             
 
@@ -364,11 +398,11 @@ void App::debugWindow() {
                         world->dumpHeightmap(0, 0, params.genSize, params.genSize, params.downsample, 0);
                     }
                 }
-                // if (ImGui::Button("Generate Biome Map")) {
-                //     if (world) {
-                //         world->dumpBiomeMap(0, 0, params.genSize, params.genSize, params.downsample, "biome_map.ppm");
-                //     }
-                // }
+                if (ImGui::Button("Generate Biome Map")) {
+                    if (world) {
+                        world->dumpBiomeMap(0, 0, params.genSize, params.genSize, params.downsample);
+                    }
+                }
             }
 
             ImGui::Separator();
