@@ -24,6 +24,8 @@
 #include "Noise.hpp"
 #include <GLFW/glfw3.h>
 
+#include "FastNoiseLite.h"
+
 
 class World;
 class BlockStorage;
@@ -81,6 +83,7 @@ public:
 
     void carveWorm(Worm& worm, BlockStorage &blocks);
     void generate(const TerrainGenerationParams& terrainParams);
+	void generateCaves(BlockStorage &blocks, const TerrainGenerationParams &terrainParams);
 
     BlockType getBlock(int x, int y, int z) const;
 	void setBlock(int x, int y, int z, BlockType block);

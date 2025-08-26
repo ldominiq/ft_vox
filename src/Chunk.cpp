@@ -474,8 +474,38 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
         }
     }
 
+    
+    generateCaves(blocks, terrainParams);
+
     // encode palette and block data (same as before)
     blockIndices.encodeAll(blocks.getData(), palette, paletteMap);
+}
+
+void Chunk::generateCaves(BlockStorage &blocks, const TerrainGenerationParams &terrainParams) {
+    // Cave generation (cheese + spaghetti) using 3D Perlin noise
+    // cave top between 45 and computeTerrainHeight
+    const int caveTopY = std::min(45, computeTerrainHeight(terrainParams, static_cast<float>(originX + Chunk::WIDTH), static_cast<float>(originZ + Chunk::DEPTH)));
+    const int yStart   = std::max(terrainParams.bedrockLevel + 5, 0); // Don't overwrite bedrock
+    Noise caveNoise(terrainParams.seed + 7890);
+    FastNoiseLite noise;
+    noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    noise.SetSeed(terrainParams.seed + 7890);
+    noise.SetFractalType(FastNoiseLite::FractalType_FBm);
+
+    for (int x = 0; x < Chunk::WIDTH; ++x) {
+        const auto worldX = static_cast<float>(originX + x);
+        for (int y = yStart; y <= caveTopY; ++y) {
+            for (int z = 0; z < Chunk::DEPTH; ++z) {
+                const auto worldZ = static_cast<float>(originZ + z);
+                
+                float noiseValue = noise.GetNoise(worldX * 0.7f, y * 2.0f, worldZ * 0.6f);
+                if (noiseValue < -0.3f) {
+                    blocks.at(x, y, z) = BlockType::AIR;
+                }
+            }
+        }
+    }
+    
 }
 
 BlockType Chunk::getBlock(int x, int y, int z) const {
