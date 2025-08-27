@@ -9,7 +9,7 @@ include(FetchContent)
 # Glad
 FetchContent_Declare(
   glad
-  GIT_REPOSITORY git@github.com:ldominiq/GLAD-4.6.git
+  GIT_REPOSITORY https://github.com/ldominiq/GLAD-4.6.git
   GIT_TAG main
 )
 FetchContent_MakeAvailable(glad)

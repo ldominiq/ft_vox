@@ -426,8 +426,10 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
                         top = BlockType::GRASS;
                         fill = BlockType::DIRT;
                         // Add trees randomly
-                        if (rand() % 1000 < 10) { // 1% chance to add a tree
-                            int treeHeight = 4 + rand() % 7; // Random height between 4 and 10
+                        std::seed_seq seedData{terrainParams.seed, x, y, z};
+                        std::mt19937 rng(seedData);
+                        if (rng() % 1000 < 10) { // 1% chance to add a tree
+                            int treeHeight = 4 + rng() % 7; // Random height between 4 and 10
                             top = BlockType::DIRT;
                             for (int treeY = surfaceY; treeY < surfaceY + treeHeight; treeY++) {
                                 if (treeY >= 0 && treeY < HEIGHT)
