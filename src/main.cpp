@@ -10,7 +10,7 @@ int main(int argc, char** argv) {
 		try {
 			seed = std::stoi(argv[1]);
 		} catch (std::exception &e) {
-			std::cout << e.what() << ": please. Just put a number... exiting" << std::endl;
+			std::cout << e.what() << ": please enter a number for world seed." << std::endl;
 			exit(1);
 		}
 		

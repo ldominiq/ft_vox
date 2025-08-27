@@ -24,8 +24,6 @@
 #include "Noise.hpp"
 #include <GLFW/glfw3.h>
 
-#include "FastNoiseLite.h"
-
 
 class World;
 class BlockStorage;
@@ -36,7 +34,6 @@ struct IVec3Hash {
     }
 };
 
-// TODO : REVAMP CAVES. Idea : map the whole world to some 3D noise map. Maybe possible and efficient?
 struct Worm {
     glm::vec3 pos;
 	float radius = 2.0f;

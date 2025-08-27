@@ -46,6 +46,7 @@ glm::vec2 getTextureOffset(const BlockType type, const int face) {
 
         default:
             col = 0; row = 0;
+            std::cerr << "Unknown BlockType in getTextureOffset: " << static_cast<int>(type) << std::endl;
             break;
     }
 
@@ -484,6 +485,7 @@ void Chunk::generate(const TerrainGenerationParams& terrainParams) {
 
 void Chunk::generateCaves(BlockStorage &blocks, const TerrainGenerationParams &terrainParams) {
     // Cave generation (cheese + spaghetti) using 3D Perlin noise
+    // TODO: Spaghetti caves
     const int caveTopY = terrainParams.seaLevel - 20;
     const int yStart   = terrainParams.bedrockLevel + 5;
     Noise cheeseNoise(terrainParams.seed + 7890);
