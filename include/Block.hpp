@@ -10,7 +10,9 @@ enum class BlockType {
     SAND,
     SNOW,
     WATER,
-    BEDROCK
+    BEDROCK,
+    LOG,
+    LEAVES
 };
 
 struct Voxel {

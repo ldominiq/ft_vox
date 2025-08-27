@@ -3,7 +3,7 @@
 
 Camera::Camera(glm::vec3 position)
     : Position(position), WorldUp(0.0f, 1.0f, 0.0f),
-      Yaw(45.0f), Pitch(0.0f), MovementSpeed(2.0f), MouseSensitivity(0.1f) {
+      Yaw(0.0f), Pitch(0.0f), MovementSpeed(5.0f), MouseSensitivity(0.1f) {
     Front = glm::vec3(0.0f, 0.0f, -1.0f);
     updateCameraVectors();
 	initWireframeCube();
@@ -16,17 +16,29 @@ glm::mat4 Camera::getViewMatrix() const {
 void Camera::processKeyboard(const int direction, const float deltaTime) {
     const float velocity = MovementSpeed * deltaTime;
 
-    // Minecraft'ish camera. Doens't move along the Y axis
+    // Minecraft'ish camera.
     glm::vec3 horizontalFront = glm::normalize(glm::vec3(Front.x, 0.0f, Front.z));
 
-    if (direction == FORWARD)
+    switch (direction) {
+    case FORWARD:
         Position += horizontalFront * velocity;
-    if (direction == BACKWARD)
+        break;
+    case BACKWARD:
         Position -= horizontalFront * velocity;
-    if (direction == LEFT)
+        break;
+    case LEFT:
         Position -= glm::normalize(glm::cross(horizontalFront, WorldUp)) * velocity;
-    if (direction == RIGHT)
+        break;
+    case RIGHT:
         Position += glm::normalize(glm::cross(horizontalFront, WorldUp)) * velocity;
+        break;
+    case UP:
+        Position += WorldUp * velocity;
+        break;
+    case DOWN:
+        Position -= WorldUp * velocity;
+        break;
+    }
 }
 
 void Camera::processMouseMovement(float xoffset, float yoffset) {

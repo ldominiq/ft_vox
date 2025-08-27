@@ -4,15 +4,14 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/noise.hpp>
 
 #include <glad/glad.h>
 #include <cstdlib>
 #include <cmath>
 #include <iostream>
 #include <ostream>
+#include <fstream>
 #include "Shader.hpp"
-#include "FastNoiseLite.h"
 
 #include <random>
 #include <unordered_set>
@@ -22,6 +21,9 @@
 #include "Block.hpp"
 #include "BitPackedArray.hpp"
 #include "TerrainParams.hpp"
+#include "Noise.hpp"
+#include <GLFW/glfw3.h>
+
 
 class World;
 class BlockStorage;
@@ -32,13 +34,13 @@ struct IVec3Hash {
     }
 };
 
-// TODO : REVAMP CAVES. Idea : map the whole world to some 3D noise map. Maybe possible and efficient?
 struct Worm {
     glm::vec3 pos;
 	float radius = 2.0f;
 	int steps = 120;
-	// FastNoiseLite noise;
 
+	Worm() : pos(0.0f), radius(0.0f), steps(0) {}
+	
 	Worm(const glm::vec3& p, float r, int s)
 		: pos(p), radius(r), steps(s) {}
 
@@ -56,8 +58,10 @@ enum class BiomeType {
     PLAINS,
     DESERT,
     FOREST,
-    MOUNTAIN,
-    SNOW
+    TUNDRA,
+	SWAMP,
+	OCEAN,
+	MOUNTAIN
 };
 
 class Chunk {
@@ -66,15 +70,19 @@ public:
 	static constexpr int HEIGHT = 256; // Height of the chunck in blocks
 	static constexpr int DEPTH = 16; // Depth of the chunck in blocks
     static constexpr int BLOCK_COUNT = WIDTH * HEIGHT * DEPTH;
-	const int ATLAS_COLS = 8;
+	const int ATLAS_COLS = 10;
 	const int ATLAS_ROWS = 1;
 
     Chunk(const int chunkX, const int chunkZ, const TerrainGenerationParams& params, const bool doGenerate = true);
-	Chunk() = default;
+	Chunk();
 	~Chunk();
-    
+
+    // Release GL resources
+    void releaseGL();
+
     void carveWorm(Worm& worm, BlockStorage &blocks);
     void generate(const TerrainGenerationParams& terrainParams);
+	void generateCaves(BlockStorage &blocks, const TerrainGenerationParams &terrainParams);
 
     BlockType getBlock(int x, int y, int z) const;
 	void setBlock(int x, int y, int z, BlockType block);
@@ -95,8 +103,19 @@ public:
 
 	bool preGenerated = false;
 
-	BlockType selectBlockType(int y, int surfaceHeight, float blend, const std::vector<BiomeParams>& biomes, const std::vector<float>& weights, const std::vector<float>& heights);
+	static float interpolateSpline(float noise, const std::vector<std::pair<float, float>>& spline);
 
+	static float getContinentalness(const TerrainGenerationParams& terrainParams, float wx, float wz);
+	static float getErosion(const TerrainGenerationParams& terrainParams, float wx, float wz);
+	static float getPV(const TerrainGenerationParams& terrainParams, float wx, float wz);
+
+	static float getTemperature(const TerrainGenerationParams& terrainParams, float wx, float wz);
+	static float getHumidity(const TerrainGenerationParams& terrainParams, float wx, float wz);
+
+	static float surfaceNoiseTransformation(float noise, int splineIndex);
+
+	static int computeTerrainHeight(const TerrainGenerationParams& terrainParams, float worldX, float worldZ);
+	static BiomeType computeBiome(const TerrainGenerationParams& terrainParams, float worldX, float worldZ, int height);
 
 private:
 	TerrainGenerationParams currentParams;
@@ -114,7 +133,8 @@ private:
 	
     int originX; // X coordinate of the chunck origin
     int originZ; // Z coordinate of the chunck origin
-    GLuint VAO = 0, VBO = 0;
+    GLuint VAO = 0;
+    GLuint VBO = 0;
 	uint meshVerticesSize;
     std::vector<float> meshVertices; // Vertices for the mesh
 

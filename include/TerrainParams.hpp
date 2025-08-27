@@ -2,72 +2,114 @@
 // Created by lucas on 8/6/25.
 //
 
-#ifndef TERRAINPARAMS_HPP
-#define TERRAINPARAMS_HPP
+#ifndef TERRAIN_PARAMS_HPP
+#define TERRAIN_PARAMS_HPP
 
 #include "Block.hpp"
 #include <vector>
+#include <cstdint>
 
-// ==BIOME PARAMETERS==
-// scaleX/scaleZ = how stretched the biome is
-// amplitude = how high the terrain will be
-// offset = how much the terrain is offset from 0
-// blendMin/blendMax = how much the biome blends with the next one
-// topBlock = the block type at the top of the biome
-struct BiomeParams {
-    float scaleX, scaleZ;
-    float amplitude;
-    float offset;
-    float blendMin, blendMax;
-    BlockType topBlock;
-    bool useBaseNoise;
+// Spline control points: {continentalness, height}
+static const std::vector<std::pair<float, float>> continentalnessSpline = {
+
+    // VALUES REQUIRING TINKERING
+    {-3.8f, 256.0f }, // Mushroom land
+    { -1.0f, 40.0f }, // Ocean floor
+    { -0.52f, 45.0f },
+    { -0.19f, 72.0f }, // Coast
+    { -0.11f, 75.0f }, // Coast
+    { 0.03f, 87.0f }, // Near inland
+    { 0.3f, 90.0f }, // Mid inland
+    { 0.9f, 170.0f }, // 
+    { 3.8f, 256.0f }  // Mountains / plateau
+
 };
 
+static const std::vector<std::pair<float, float>> erosionSpline = {
+    // VALUES REQUIRING TINKERING
+    { -1.00f, 256.0f },
+    { -0.78f, 210.0f },
+    { -0.375f, 170.0f },
+    { -0.2225f, 120.0f },
+    {  0.05f,  72.0f },
+    {  0.45f,  86.0f },
+    {  0.55f,  89.0f },
+    {  1.00f,  62.0f }
+
+};
+
+static const std::vector<std::pair<float, float>> peakValleySpline = {
+    // VALUES REQUIRING TINKERING
+    { -1.00f, -120.0f }, // Valleys
+    { -0.6f, -90.0f },
+    { 0.0f, 0.0f }, // Middle
+    {  0.7f, 120.0f }, // High
+    {  1.0f, 190.0f } // Peaks
+};
+
+// Terrain / generation tunables exposed to code / UI
 struct TerrainGenerationParams {
-    int seed = 1336;
+    // deterministic seed
+    int32_t seed = 1337;
 
-    // Noise frequencies
-    float biomeNoiseFreq = 0.0008f; // Large biome regions
-    float baseNoiseFreq = 0.007f; // Main terrain features
-    float detailNoiseFreq = 0.03f; // Small details
-
-    // Sea level and base terrain
+    // basic levels
     int seaLevel = 64;
-    int bedrockLevel = 5;
-
-    // Continents/coasts
-    float continentFreq = 0.0007f;   // slightly larger landmasses
-    float warpFreq      = 0.0016f;
-    float warpAmp       = 80.0f;
-
-    // Detail
-    float hillsFreq = 0.0032f;
-    float ridgedFreq= 0.0050f;
-    // Plains vs hills
-    float plainsHillsAmp   = 3.0f;    // small undulation in flat areas
-    float hillsAmp         = 6.0f;
-    // Mountains
-    float mtnBase          = 10.0f;   // base uplift in mountain regions
-    float mtnAmp           = 60.0f;   // mountain height (peaks)
-
-    // Climate
-    float tempFreq    = 0.0011f;
-    float moistFreq   = 0.0012f;
-    float latitudeAmp      = 0.15f;   // modest latitude effect (optional)
-
-    // Biome/beach/snow
-    float beachWidth = 5.0f;     // wider beaches
-    int   snowLine   = 170;      // snow only on high peaks (HEIGHT=256)
+    int bedrockLevel = 0;
 
 
-    // Mountain placement (regional)
-    float mtnMaskFreq      = 0.0008f; // where mountains are allowed (big regions)
-    float mtnMaskThreshold = 0.62f;   // higher → fewer mountain regions
-    float mtnMaskSharpness = 0.10f;   // transition width
+    // heightmap dump settings / helpers (used by World::dumpHeightmap)
+    int genSize = 1000;     // default size for quick dumps
+    int downsample = 16;    // output downsample factor for dumps
 
-    // Climate cells to create cold/snowy plains
-    float coldCellFreq     = 0.0005f; // very big cold regions
-    float coldCellStrength = 0.35f;   // how much they lower temp
+    // Continentalness noise params
+    float continentalnessFrequency = 0.001f;
+    int continentalnessOctaves = 5;
+    float continentalnessPersistence = 0.245f;
+    float continentalnessLacunarity = 3.250f;
+    float continentalnessScalingFactor = 4.5f;
+
+    // Erosion noise params
+    float erosionFrequency = 0.009f;
+    int erosionOctaves = 5;
+    float erosionPersistence = 0.35f;
+    float erosionLacunarity = 2.37f;
+    float erosionScalingFactor = 2.0f;
+
+    // Peak / valley noise params
+    float peakValleyFrequency = 0.001f;
+    int peakValleyOctaves = 5;
+    float peakValleyPersistence = 0.271f;
+    float peakValleyLacunarity = 1.438f;
+    float peakValleyScalingFactor = 2.5f;
+
+    // BIOMES
+
+    // Temperature noise params
+    float temperatureFrequency = 0.0012f;
+    int temperatureOctaves = 4;
+    float temperaturePersistence = 0.50f;
+    float temperatureLacunarity = 2.0f;
+    float temperatureScalingFactor = 0.5f;
+
+
+    // Humidity noise params
+    float humidityFrequency = 0.0015f;
+    int humidityOctaves = 4;
+    float humidityPersistence = 0.50f;
+    float humidityLacunarity = 2.0f;
+    float humidityScalingFactor = 0.5f;
+
+    // Size of biome regions in chunks (larger -> larger contiguous biomes)
+    int biomeScaleChunks = 8;
+    bool snapClimateToCells = true;
+    float climateWarpFrequency = 0.0008f;
+    float climateWarpStrength = 180.0f;
+
+    float desertMoistureThreshold = 0.30f;
+    float forestMoistureThreshold = 0.60f;
+    float snowTemperatureThreshold = 0.28f;
+
+
 };
 
-#endif //TERRAINPARAMS_HPP
+#endif // TERRAIN_PARAMS_HPP

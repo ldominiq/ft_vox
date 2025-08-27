@@ -14,6 +14,16 @@ class Camera {
 	std::unique_ptr<Shader> blockWireframeShader = nullptr;
 
 public:
+
+    enum MovementDirection {
+        FORWARD,
+        BACKWARD,
+        LEFT,
+        RIGHT,
+        UP,
+        DOWN
+    };
+
     glm::vec3 Position;
     glm::vec3 Front;
     glm::vec3 Up;

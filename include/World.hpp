@@ -11,7 +11,9 @@
 #include <algorithm>
 #include <unordered_set>
 #include <memory>
+#include <string>
 
+#include <mutex>
 #include <future>
 #include <fstream>
 #include <filesystem>
@@ -26,7 +28,9 @@ static constexpr int REGION_SIZE = 32;
 template <>
 struct std::hash<ChunkPos> {
     std::size_t operator()(const ChunkPos& p) const noexcept {
-        return std::hash<int>()(p.first) ^ std::hash<int>()(p.second) << 1;
+        std::size_t h1 = std::hash<int>()(p.first);
+        std::size_t h2 = std::hash<int>()(p.second);
+        return h1 ^ (h2 << 1);
     }
 };
 
@@ -49,6 +53,9 @@ public:
 	World(int seed);
 
     ~World();
+
+    void dumpHeightmap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample, int image) const;
+    void dumpBiomeMap(int centerChunkX, int centerChunkZ, int chunksX, int chunksZ, int downsample);
 
 	std::vector<std::weak_ptr<Chunk>> getRenderedChunks();
 
@@ -96,6 +103,8 @@ private:
     // Pending futures representing asynchronous chunk generation tasks.
     std::vector<std::future<std::pair<ChunkPos, std::shared_ptr<Chunk>>>> generationFutures;
 
+    mutable std::mutex chunkMutex;
+
     // The radius (in chunks) around the camera in which to load chunks.  This
     // value can be changed at runtime via the UI.
     int loadRadius = 16;
@@ -105,7 +114,7 @@ private:
     // same time.  Limiting concurrency prevents CPU oversubscription and
     // reduces frame drops when many chunks need to be generated.  This
     // value can be tuned based on the number of available CPU cores.
-    std::size_t maxConcurrentGeneration = 8;
+    std::size_t maxConcurrentGeneration = 4;
 
     std::unordered_set<ChunkPos> linkNeighbors(int chunkX, int chunkZ, std::shared_ptr<Chunk> &chunk);
     static ChunkPos toKey(int chunkX, int chunkZ);
