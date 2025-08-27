@@ -108,7 +108,7 @@ private:
     // same time.  Limiting concurrency prevents CPU oversubscription and
     // reduces frame drops when many chunks need to be generated.  This
     // value can be tuned based on the number of available CPU cores.
-    std::size_t maxConcurrentGeneration = 8;
+    std::size_t maxConcurrentGeneration = 4;
 
     std::unordered_set<ChunkPos> linkNeighbors(int chunkX, int chunkZ, std::shared_ptr<Chunk> &chunk);
     static ChunkPos toKey(int chunkX, int chunkZ);

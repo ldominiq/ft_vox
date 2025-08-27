@@ -407,7 +407,7 @@ void App::debugWindow() {
             // Lower values produce smoother frame rates but slower world loading.
             if (world) {
                 int maxGen = static_cast<int>(world->getMaxConcurrentGeneration());
-                if (ImGui::SliderInt("Generation Concurrency", &maxGen, 1, 16)) {
+                if (ImGui::SliderInt("Generation Concurrency", &maxGen, 1, 8)) {
                     world->setMaxConcurrentGeneration(static_cast<std::size_t>(maxGen));
                 }
             }
