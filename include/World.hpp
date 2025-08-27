@@ -11,7 +11,9 @@
 #include <algorithm>
 #include <unordered_set>
 #include <memory>
+#include <string>
 
+#include <mutex>
 #include <future>
 #include <fstream>
 #include <filesystem>
@@ -26,7 +28,9 @@ static constexpr int REGION_SIZE = 32;
 template <>
 struct std::hash<ChunkPos> {
     std::size_t operator()(const ChunkPos& p) const noexcept {
-        return std::hash<int>()(p.first) ^ std::hash<int>()(p.second) << 1;
+        std::size_t h1 = std::hash<int>()(p.first);
+        std::size_t h2 = std::hash<int>()(p.second);
+        return h1 ^ (h2 << 1);
     }
 };
 
@@ -98,6 +102,8 @@ private:
 
     // Pending futures representing asynchronous chunk generation tasks.
     std::vector<std::future<std::pair<ChunkPos, std::shared_ptr<Chunk>>>> generationFutures;
+
+    mutable std::mutex chunkMutex;
 
     // The radius (in chunks) around the camera in which to load chunks.  This
     // value can be changed at runtime via the UI.

@@ -3,10 +3,7 @@
 //
 
 #include "World.hpp"
-#include "Chunk.hpp"
-#include "TerrainParams.hpp"
-#include <fstream>
-#include <string>
+
 
 // helper to write PPM
 static void saveHeightmapPPM(const std::string &path, const std::vector<float> &heightmap, int w, int h) {
@@ -28,21 +25,6 @@ static void saveHeightmapPPM(const std::string &path, const std::vector<float> &
         }
     }
     f.close();
-}
-
-// Save a simple RGB PPM where each pixel is an sRGB color representing the biome
-static void saveBiomePPM(const std::string &path, const std::vector<glm::u8vec3> &img, int w, int h) {
-	std::ofstream f(path, std::ios::binary);
-	f << "P6\n" << w << " " << h << "\n255\n";
-	for (int j = 0; j < h; ++j) {
-		for (int i = 0; i < w; ++i) {
-			const glm::u8vec3 &c = img[i + j * w];
-			f.put(static_cast<char>(c.r));
-			f.put(static_cast<char>(c.g));
-			f.put(static_cast<char>(c.b));
-		}
-	}
-	f.close();
 }
 
 // Dumps a world-sized heightmap by sampling noise without generating chunks
@@ -204,7 +186,6 @@ World::World() {
 World::World(int seed) {
 	regionDirName = "region-" + std::to_string(seed);
 	// std::filesystem::create_directories(regionDirName);
-    std::mt19937 rng(time(nullptr));
     terrainParams.seed = seed;
 }
 
@@ -217,6 +198,7 @@ ChunkPos World::toKey(int chunkX, int chunkZ) {
 
 std::shared_ptr<Chunk> World::getChunk(int chunkX, int chunkZ) {
     const ChunkPos key = toKey(chunkX, chunkZ);
+    std::lock_guard<std::mutex> lock(chunkMutex);
     auto it = chunks.find(key);
     if (it == chunks.end())
         return nullptr;
@@ -428,6 +410,7 @@ void World::updateVisibleChunks(const glm::vec3& cameraPos, const glm::vec3& cam
 		if (fut.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
 			auto result = fut.get();
 			generatingChunks.insert(result.first); //race condition?
+            std::lock_guard<std::mutex> lock(chunkMutex);
 			chunks[result.first] = result.second;
 
 			it = generationFutures.erase(it);
@@ -557,6 +540,7 @@ void World::updateRegionStreaming(int currentChunkX, int currentChunkZ) {
 
 //TODO handle the throws or change them to returns
 void World::saveRegion(int regionX, int regionZ) {
+    std::lock_guard<std::mutex> lock(chunkMutex);
     std::string filename = getRegionFilename(regionX, regionZ);
     std::ofstream out(filename, std::ios::binary | std::ios::trunc);
     if (!out) throw std::runtime_error("Cannot open region file for writing: " + filename);
@@ -605,6 +589,7 @@ void World::saveRegion(int regionX, int regionZ) {
 
 
 void World::loadRegion(int regionX, int regionZ) {
+    std::lock_guard<std::mutex> lock(chunkMutex);
     std::string filename = getRegionFilename(regionX, regionZ);
     std::ifstream in(filename, std::ios::binary);
     if (!in) return ;
