@@ -144,3 +144,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   Xxf86vm
   z
 )
+
+target_compile_options(ft_vox PRIVATE -fPIE)
+target_link_options(ft_vox PRIVATE -pie)

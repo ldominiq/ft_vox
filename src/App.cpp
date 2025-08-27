@@ -636,13 +636,13 @@ void App::processInput() {
 
         // Move up/down
         if (glfwGetKey(window, controlsArray[UP]) == GLFW_PRESS)
-            camera->Position.y += 1.0f;
+            camera->processKeyboard(UP, deltaTime);
         if (glfwGetKey(window, controlsArray[DOWN]) == GLFW_PRESS)
-            camera->Position.y -= 1.0f;
+            camera->processKeyboard(DOWN, deltaTime);
 
         // Move faster
         if (glfwGetKey(window, controlsArray[MOVE_FAST]) == GLFW_PRESS)
-            camera->MovementSpeed = 100.0f;
+            camera->MovementSpeed = 50.0f;
         if (glfwGetKey(window, controlsArray[MOVE_FAST]) == GLFW_RELEASE)
             camera->MovementSpeed = 5.0f;
     }
