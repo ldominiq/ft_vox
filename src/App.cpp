@@ -4,17 +4,6 @@
 
 #include "App.hpp"
 
-// ImGui includes
-#include <imgui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
-#include <unistd.h> // for sysconf
-#include <stdio.h>  // for FILE, fopen
-#include <cstdlib>
-
-GLFWwindow* window;
-
-static unsigned int loadTexture(const char* path);
 
 App::App(): VAO(0),
 			VBO(0),
@@ -95,19 +84,6 @@ void App::init() {
 
 	if (seed.has_value()) world = std::make_unique<World>(seed.value());
     else world = std::make_unique<World>();
-
-    // Headless dump helper: if environment variable FTVOX_DUMP_BIOMES is set
-    // call World::dumpBiomeMap and exit. This lets us quickly regenerate the
-    // biome map after changes without interacting with the UI.
-    // if (std::getenv("FTVOX_DUMP_BIOMES")) {
-    //     TerrainGenerationParams &p = world->getTerrainParams();
-    //     int size = p.genSize;
-    //     int down = p.downsample;
-    //     std::string out = "build/biome_map.ppm";
-    //     std::cout << "FTVOX_DUMP_BIOMES set — generating biome map: " << out << std::endl;
-    //     world->dumpBiomeMap(0, 0, size, size, down, out);
-    //     std::exit(0);
-    // }
     
     glEnable(GL_DEPTH_TEST);
     
@@ -431,7 +407,7 @@ void App::debugWindow() {
             // Lower values produce smoother frame rates but slower world loading.
             if (world) {
                 int maxGen = static_cast<int>(world->getMaxConcurrentGeneration());
-                if (ImGui::SliderInt("Generation Concurrency", &maxGen, 1, 8)) {
+                if (ImGui::SliderInt("Generation Concurrency", &maxGen, 1, 16)) {
                     world->setMaxConcurrentGeneration(static_cast<std::size_t>(maxGen));
                 }
             }
@@ -469,6 +445,11 @@ void App::cleanup() {
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
+    glDeleteTextures(1, &texture);
+
     glfwTerminate();
     saveControls();
 }
@@ -478,8 +459,8 @@ void App::loadControlsDefaults() {
 	controlsArray[BACKWARD]        		= GLFW_KEY_S;
 	controlsArray[LEFT]					= GLFW_KEY_A;
 	controlsArray[RIGHT]				= GLFW_KEY_D;
-    controlsArray[UP]					= GLFW_KEY_E;
-    controlsArray[DOWN]					= GLFW_KEY_Q;
+    controlsArray[UP]					= GLFW_KEY_SPACE;
+    controlsArray[DOWN]					= GLFW_KEY_LEFT_CONTROL;
     controlsArray[LEFT_CLICK]			= GLFW_MOUSE_BUTTON_LEFT;
     controlsArray[TOGGLE_FULLSCREEN]	= GLFW_KEY_F11;
     controlsArray[TOGGLE_WIREFRAME]		= GLFW_KEY_F1;
@@ -706,7 +687,7 @@ void App::toggleDisplayMode() {
     }
 }
 
-static unsigned int loadTexture(const char* path) {
+unsigned int App::loadTexture(const char* path) {
     GLuint texID;
     glGenTextures(1, &texID);
     glBindTexture(GL_TEXTURE_2D, texID);
@@ -719,7 +700,7 @@ static unsigned int loadTexture(const char* path) {
         glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, format, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
     } else {
-        std::cerr << "Failed to load texture\n";
+        std::cerr << "Failed to load texture: " << path << "\n";
     }
     
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);

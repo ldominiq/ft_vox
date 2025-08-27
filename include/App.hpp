@@ -21,9 +21,14 @@
 // glm for vector types used in lighting controls
 #include <glm/vec3.hpp>
 #include <memory>
-// #include <glm/glm.hpp>
-// #include <glm/gtc/matrix_transform.hpp>
-// #include <glm/gtc/type_ptr.hpp>
+
+// ImGui includes
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
+#include <unistd.h> // for sysconf
+#include <stdio.h>  // for FILE, fopen
+#include <cstdlib>
 
 #define CONTROL_LIST 		\
     X(FORWARD)       		\
@@ -59,6 +64,7 @@ public:
 private:
     void init();
     void loadResources();
+    static unsigned int loadTexture(const char* path);
     void render();
 
     void cleanup();
@@ -75,6 +81,7 @@ private:
 
 	void debugWindow();
 
+    GLFWwindow* window;
 
     unsigned int VAO, VBO, EBO, shaderProgram, texture;
 

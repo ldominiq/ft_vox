@@ -3,6 +3,7 @@ project(ft_vox LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 include(FetchContent)
 
 # Glad
@@ -44,7 +45,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(stb)
 
 if(ASAN)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g -O1")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=undefined -fsanitize=leak -g -O1")
     set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fsanitize=address")
 endif()
 
@@ -144,6 +145,3 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   Xxf86vm
   z
 )
-
-target_compile_options(ft_vox PRIVATE -fPIE)
-target_link_options(ft_vox PRIVATE -pie)
